@@ -1,0 +1,100 @@
+#ifndef __IDE_H
+#define __IDE_H
+
+#include "hw.h"
+#include "pc.h"
+#include "pci.h"
+#include "scsi-disk.h"
+#include "pcmcia.h"
+#include "block.h"
+#include "block_int.h"
+#include "qemu-timer.h"
+#include "sysemu.h"
+#include "ppc_mac.h"
+#include "mac_dbdma.h"
+#include "sh.h"
+#include "dma.h"
+
+struct IDEState;
+struct SSDState;
+
+typedef void EndTransferFunc(struct IDEState *);
+
+/* NOTE: IDEState represents in fact one drive */
+typedef struct IDEState {
+    /* ide config */
+    int is_cdrom;
+    int is_cf;
+    int cylinders, heads, sectors;
+    int64_t nb_sectors;
+    int mult_sectors;
+    int identify_set;
+    uint16_t identify_data[256];
+    qemu_irq irq;
+    PCIDevice *pci_dev;
+    struct BMDMAState *bmdma;
+    int drive_serial;
+    char drive_serial_str[21];
+    /* ide regs */
+    uint8_t feature;  /* Coperd: feature register */
+    uint8_t error;    /* Coperd: error register */
+    uint32_t nsector; 
+    uint8_t sector;   /* Coperd: sector count register, serve as one parameter of command */
+    uint8_t lcyl;     /* Coperd: LBA Low register, one parameter of command */
+    uint8_t hcyl;     /* Coperd: LBA High register, one parameter of command */
+    /* other part of tf for lba48 support */
+    uint8_t hob_feature;
+    uint8_t hob_nsector;
+    uint8_t hob_sector;
+    uint8_t hob_lcyl;
+    uint8_t hob_hcyl;
+
+    uint8_t select; /* */
+    uint8_t status; /* Coperd: status register */
+
+    /* 0x3f6 command, only meaningful for drive 0 */
+    uint8_t cmd;
+    /* set for lba48 access */
+    uint8_t lba48;
+    /* depends on bit 4 in select, only meaningful for drive 0 */
+    struct IDEState *cur_drive;
+    BlockDriverState *bs;
+    /* ATAPI specific */
+    uint8_t sense_key;
+    uint8_t asc;
+    uint8_t cdrom_changed;
+    int packet_transfer_size;
+    int elementary_transfer_size;
+    int io_buffer_index;
+    int lba;
+    int cd_sector_size;
+    int atapi_dma; /* true if dma is requested for the packet cmd */
+    /* ATA DMA state */
+    int io_buffer_size;
+    QEMUSGList sg;
+    /* PIO transfer handling */
+    int req_nb_sectors; /* number of sectors per interrupt */
+    EndTransferFunc *end_transfer_func;
+    uint8_t *data_ptr;
+    uint8_t *data_end;
+    uint8_t *io_buffer;
+    QEMUTimer *sector_write_timer; /* only used for win2k install hack */
+    uint32_t irq_count; /* counts IRQs when using win2k install hack */
+    /* CF-ATA extended error */
+    uint8_t ext_error;
+    /* CF-ATA metadata storage */
+    uint32_t mdata_size;
+    uint8_t *mdata_storage;
+    int media_changed; /* Coperd: set after r/w using DMA, why??? */
+    /* for pmac */
+    int is_read;
+
+    /* SSD structure put here */
+    SSDState ssd;
+} IDEState;
+
+
+
+void ide_rw_error(struct IDEState *s);
+
+#endif
