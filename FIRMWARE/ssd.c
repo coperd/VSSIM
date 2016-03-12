@@ -120,8 +120,9 @@ int SSD_READ(IDEState *s, int32_t sector_num, unsigned int length)
 #ifdef DEBUG_LATENCY
     int64_t tend = get_timestamp();
 
-    printf("[%s] read (%" PRId32 ", %d): %" PRId64 " us\n", get_ssd_name(s), 
+    mylog("[%s] read (%" PRId32 ", %d): %" PRId64 " us\n", get_ssd_name(s), 
             sector_num, length, tend - tstart);
+    mylog("[%s] ssd_read() end: %" PRId64 " \n", get_ssd_name(s), tend-tstart);
 #endif
 
     return ret;

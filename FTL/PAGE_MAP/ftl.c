@@ -13,6 +13,9 @@
 #include "ssd_io_manager.h"
 #include "ftl_gc_manager.h"
 #include "firm_buffer_manager.h"
+#include "mytrace.h"
+
+//#define DEBUG_LATENCY
 
 #ifndef VSSIM_BENCH
 #include "qemu-kvm.h"
@@ -189,7 +192,10 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
         ppn = GET_MAPPING_INFO(s, lpn);
 
         if (ppn == -1) {
-            printf("[%s] no mapping for %" PRId32 "\n", get_ssd_name(s), lba);
+            printf("[%s, %" PRId32 "] no mapping info\n", get_ssd_name(s), lba);
+#ifdef DEBUG_LATENCY
+            mylog("[%s] no mapping\n", get_ssd_name(s));
+#endif 
 #ifdef FIRM_IO_BUFFER
             INCREASE_RB_LIMIT_POINTER(s);
 #endif
@@ -225,7 +231,7 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
 #endif
 
         if (ppn == -1) {
-            printf("ERROR[%s] No Mapping info\n", __FUNCTION__);
+            printf("[%s, %" PRId32 "] no mapping info\n", get_ssd_name(s), lba);
             return ret;
         }
 
@@ -244,7 +250,6 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
         lba += read_sects;
         remain -= read_sects;
         left_skip = 0;
-
     }
 
     /* Coperd: update io_request_seq_nb (+1) */
@@ -279,7 +284,7 @@ int _FTL_WRITE(IDEState *s, int32_t sector_num, unsigned int length)
     int io_page_nb;
 
     if (sector_num + length > ssdconf->sector_nb) {
-        printf("ERROR[%s] Exceed Sector number\n", __FUNCTION__);
+        printf("[%s] Exceed Sector number\n", get_ssd_name(s));
         return FAIL;
     } else {
         ALLOC_IO_REQUEST(s, sector_num, length, WRITE, &io_page_nb);
@@ -296,7 +301,7 @@ int _FTL_WRITE(IDEState *s, int32_t sector_num, unsigned int length)
     unsigned int write_sects;
 
     unsigned int ret = FAIL;
-    int write_page_nb=0;
+    int write_page_nb = 0;
 
     while (remain > 0) {
 
@@ -319,7 +324,7 @@ int _FTL_WRITE(IDEState *s, int32_t sector_num, unsigned int length)
                            ssdconf->empty_table_entry_nb, &new_ppn);
 #endif
         if (ret == FAIL) {
-            printf("ERROR[%s] Get new page fail \n", __FUNCTION__);
+            printf("[%s] Get new page fail \n", get_ssd_name(s));
             return FAIL;
         }
 
@@ -351,6 +356,11 @@ int _FTL_WRITE(IDEState *s, int32_t sector_num, unsigned int length)
 
         UPDATE_OLD_PAGE_MAPPING(s, lpn);
         UPDATE_NEW_PAGE_MAPPING(s, lpn, new_ppn);
+
+        char *ssdname = get_ssd_name(s);
+        if (ret == FAIL) {
+            printf("[%s] write to page %" PRId32 " failed\n", ssdname, new_ppn);
+        }
 
 #ifdef FTL_DEBUG
         if (ret == SUCCESS) {

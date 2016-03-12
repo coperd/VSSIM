@@ -630,6 +630,8 @@ typedef struct SSDState
 /* NOTE: IDEState represents in fact one drive */
 typedef struct IDEState {
 
+    int64_t wait;
+
 #ifdef DEBUG_ERR
     int nerr_dma;
     int nerr_pio;

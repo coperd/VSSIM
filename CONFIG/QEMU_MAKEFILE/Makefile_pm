@@ -538,7 +538,7 @@ obj-y += wdt_ib700.o wdt_i6300esb.o
 
 # For VSSIM support, you must add object file here.
 # ex). obj-i386-y = ftl.o
-obj-i386-y += ssd_util.o mytrace.o
+obj-i386-y += ssd_util.o 
 obj-i386-y += vssim_config_manager.o
 obj-i386-y += ftl.o ftl_mapping_manager.o ftl_inverse_mapping_manager.o
 obj-i386-y += ftl_gc_manager.o ftl_perf_manager.o ftl_cache.o

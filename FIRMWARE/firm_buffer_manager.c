@@ -9,15 +9,17 @@
 #include "ftl.h"
 #include "ide.h"
 #include <pthread.h>
+#include "mytrace.h"
+
+//#define DEBUG_LATENCY
+//#define FIRM_IO_BUF_DEBUG
+//#define SSD_THREAD_DEBUG
 
 static void die2(int err, const char *what)
 {
     fprintf(stderr, "%s failed: %s\n", what, strerror(err));
     abort();
 }
-
-//#define FIRM_IO_BUF_DEBUG
-//#define SSD_THREAD_DEBUG
 
 void INIT_IO_BUFFER(IDEState *s)
 {
@@ -105,7 +107,6 @@ void INIT_WB_VALID_ARRAY(IDEState *s)
 }
 
 #ifdef SSD_THREAD
-/* Coperd: host loop to handle all the events in the event_queue */
 void *SSD_THREAD_MAIN_LOOP(void *s)
 {
     IDEState *ide = (IDEState *)s;
@@ -125,6 +126,9 @@ void *SSD_THREAD_MAIN_LOOP(void *s)
         printf("[%s] Get up! \n", __func__);
 #endif
         DEQUEUE_IO(s);
+#ifdef DEBUG_LATENCY
+        mylog("%s dequeue_io() end\n", get_ssd_name(s));
+#endif
 
 #elif defined SSD_THREAD_MODE_2
         while (ssd->r_queue_full == 0 && ssd->w_queue_full == 0) {

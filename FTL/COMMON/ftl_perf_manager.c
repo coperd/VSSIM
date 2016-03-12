@@ -7,85 +7,11 @@
 
 #include "ftl_perf_manager.h"
 #include "ssd_io_manager.h"
+
 #include <assert.h>
 
-/* Average IO Time */
-//double avg_write_delay;
-//double total_write_count;
-//double total_write_delay;
-//
-//double avg_read_delay;
-//double total_read_count;
-//double total_read_delay;
-//
-//double avg_gc_write_delay;
-//double total_gc_write_count;
-//double total_gc_write_delay;
-//
-//double avg_gc_read_delay;
-//double total_gc_read_count;
-//double total_gc_read_delay;
-//
-//double avg_seq_write_delay;
-//double total_seq_write_count;
-//double total_seq_write_delay;
-//
-//double avg_ran_write_delay;
-//double total_ran_write_count;
-//double total_ran_write_delay;
-//
-//double avg_ran_cold_write_delay;
-//double total_ran_cold_write_count;
-//double total_ran_cold_write_delay;
-//
-//double avg_ran_hot_write_delay;
-//double total_ran_hot_write_count;
-//double total_ran_hot_write_delay;
-//
-//double avg_seq_merge_read_delay;
-//double total_seq_merge_read_count;
-//double total_seq_merge_read_delay;
-//
-//double avg_ran_merge_read_delay;
-//double total_ran_merge_read_count;
-//double total_ran_merge_read_delay;
-//
-//double avg_seq_merge_write_delay;
-//double total_seq_merge_write_count;
-//double total_seq_merge_write_delay;
-//
-//double avg_ran_merge_write_delay;
-//double total_ran_merge_write_count;
-//double total_ran_merge_write_delay;
-//
-//double avg_ran_cold_merge_write_delay;
-//double total_ran_cold_merge_write_count;
-//double total_ran_cold_merge_write_delay;
-//
-//double avg_ran_hot_merge_write_delay;
-//double total_ran_hot_merge_write_count;
-//double total_ran_hot_merge_write_delay;
-
-/* IO Latency */
-//unsigned int io_request_nb;                /* Coperd: total number of io_request */
-//unsigned int io_request_seq_nb;            /* Coperd: current io request number ??? */
-
-/* Coperd: in FTL_READ/WRITE, each uplevel request will be allocated an io_request structure, denoting an io request, VSSIM maintains a list of these io requests in a single linked list, starting from io_request_start, ending with io_request_end */
-//struct io_request *io_request_start;
-//struct io_request *io_request_end;
-
-/* Calculate IO Latency */
-//double read_latency_count;
-//double write_latency_count;
-
-//double avg_read_latency;
-//double avg_write_latency;
-
-/* SSD Util */
-//double ssd_util;
-//int64_t written_page_nb;
-
-//extern double ssd_util;
+#include "../mytrace.h"
+//#define FTL_PERF_DEBUG
 
 #ifdef PERF_DEBUG1
 FILE *fp_perf1_w;
@@ -516,8 +442,8 @@ double GET_IO_BANDWIDTH(IDEState *s, double delay)
 
 }
 
-/* Coperd: (sector_nb, length) --> calculate the value of page_nb */
-int64_t ALLOC_IO_REQUEST(IDEState *s, int32_t sector_nb, unsigned int length, int io_type, int* page_nb)
+int64_t ALLOC_IO_REQUEST(IDEState *s, int32_t sector_num, unsigned int length, 
+        int io_type, int *page_nb)
 {
     SSDState *ssd = &(s->ssd);
     SSDConf *ssdconf = &(ssd->param);
@@ -525,15 +451,11 @@ int64_t ALLOC_IO_REQUEST(IDEState *s, int32_t sector_nb, unsigned int length, in
 	int64_t start = get_usec();
 	int io_page_nb = 0;
 	unsigned int remain = length;
-	unsigned int left_skip = sector_nb % ssdconf->sectors_per_page;
+	unsigned int left_skip = sector_num % ssdconf->sectors_per_page;
 	unsigned int right_skip;
 	unsigned int sects;
 
-	io_request *curr_io_request = (io_request *)calloc(1, sizeof(io_request));
-	if (curr_io_request == NULL) {
-		printf("ERROR[ALLOC_IO_REQUEST] Calloc io_request fail\n");
-		return 0;
-	}
+    io_request *curr_io_request = qemu_mallocz(sizeof(io_request));
 
 	while (remain > 0) {
 		if (remain > ssdconf->sectors_per_page - left_skip) {
@@ -548,20 +470,12 @@ int64_t ALLOC_IO_REQUEST(IDEState *s, int32_t sector_nb, unsigned int length, in
 		io_page_nb++; /* Coperd: record the number of pages to read */
 	}
 
-    /* Coperd: finally page_nb is set to the value of total pages to read for this io request */
 	*page_nb = io_page_nb; 
 
     /* Coperd: for each page read operation, maintain the time info */
-	int64_t* start_time_arr = (int64_t*)calloc(io_page_nb, sizeof(int64_t));
-	int64_t* end_time_arr = (int64_t*)calloc(io_page_nb, sizeof(int64_t));
 
-	if (start_time_arr == NULL || end_time_arr == NULL) {
-		printf("ERROR[ALLOC_IO_REQUEST] Calloc time array fail\n");
-		return 0;
-	} else {
-		memset(start_time_arr, 0, io_page_nb);
-		memset(end_time_arr, 0, io_page_nb);
-	}
+    int64_t *start_time_arr = qemu_mallocz(sizeof(int64_t)*io_page_nb);
+    int64_t *end_time_arr = qemu_mallocz(sizeof(int64_t)*io_page_nb);
 
 	curr_io_request->request_nb = ssd->io_request_seq_nb;
 	
@@ -588,7 +502,7 @@ int64_t ALLOC_IO_REQUEST(IDEState *s, int32_t sector_nb, unsigned int length, in
 #ifdef PERF_DEBUG3
 	fprintf(fp_perf3_al,"%ld\n", end-start);
 #endif
-	return (end - start); /* Coperd: return the execution time of this function */
+	return (end - start); 
 }
 
 void FREE_DUMMY_IO_REQUEST(IDEState *s, int type)
@@ -633,21 +547,21 @@ void FREE_DUMMY_IO_REQUEST(IDEState *s, int type)
         return;
     }
 
-    free(request->start_time);
-    free(request->end_time);
-    free(request);
+    qemu_free(request->start_time);
+    qemu_free(request->end_time);
+    qemu_free(request);
 
     ssd->io_request_nb--;
 }
 
-void FREE_IO_REQUEST(IDEState *s, io_request* request)
+void FREE_IO_REQUEST(IDEState *s, io_request *request)
 {
     SSDState *ssd = &(s->ssd);
     //SSDConf *ssdconf = &(ssd->param);
 
     int i;
     int success = 0;
-    io_request* prev_request = ssd->io_request_start;
+    io_request *prev_request = ssd->io_request_start;
 
 #ifdef FTL_PERF_DEBUG
     printf("\t\t[FREE_IO_REQUEST] %d\n", request->request_nb);
@@ -661,7 +575,7 @@ void FREE_IO_REQUEST(IDEState *s, io_request* request)
         ssd->io_request_start = request->next;
         success = 1;
     } else {
-        for (i = 0; i < (ssd->io_request_nb-1); i++) {
+        for (i = 0; i < (ssd->io_request_nb - 1); i++) {
             if (prev_request->next == request && request == ssd->io_request_end) {
                 prev_request->next = NULL;
                 ssd->io_request_end = prev_request;
@@ -682,20 +596,20 @@ void FREE_IO_REQUEST(IDEState *s, io_request* request)
         return;
     }
 
-    free(request->start_time);
-    free(request->end_time);
-    free(request);
+    qemu_free(request->start_time);
+    qemu_free(request->end_time);
+    qemu_free(request);
 
     ssd->io_request_nb--;
 }
 
-
-int64_t UPDATE_IO_REQUEST(IDEState *s, int request_nb, int offset, int64_t time, int type)
+int64_t UPDATE_IO_REQUEST(IDEState *s, int request_nb, 
+        int offset, int64_t time, int type)
 {
     int64_t start = get_usec();
 
     int io_type;
-    int64_t latency=0;
+    int64_t latency = 0;
 
     if (request_nb == -1)
         return 0;
@@ -707,15 +621,16 @@ int64_t UPDATE_IO_REQUEST(IDEState *s, int request_nb, int offset, int64_t time,
     }
 
     if (type == UPDATE_START_TIME) {
-        curr_request->start_time[offset] = time; /* Coperd: set to old_channel_time */
-        curr_request->start_count++;             /* Coperd: one more NAND request has started execution */
+        curr_request->start_time[offset] = time; 
+        curr_request->start_count++;             
     } else if (type == UPDATE_END_TIME) {
         curr_request->end_time[offset] = time;
         curr_request->end_count++;
     }
 
-    /* Coperd: all NAND request have finished ==> the IO request is finished in the low level */
-    if (curr_request->start_count == curr_request->request_size && curr_request->end_count == curr_request->request_size) {
+    /* Coperd: all NAND operations have finished */
+    if (curr_request->start_count == curr_request->request_size && 
+            curr_request->end_count == curr_request->request_size) {
         latency = CALC_IO_LATENCY(s, curr_request);
         io_type = curr_request->request_type;
 
@@ -790,19 +705,23 @@ int64_t CALC_IO_LATENCY(IDEState *s, io_request *request)
     int64_t *start_time_arr = request->start_time;
     int64_t *end_time_arr = request->end_time;
 
-    int64_t min_start_time;
-    int64_t max_end_time;
+    int64_t min_start_time = 0;
+    int64_t max_end_time = 0;
 
     int i;
     int type = request->request_type;
     int size = request->request_size;
 
+    assert(size > 0);
+
     for (i = 0; i < size; i++) {
         if (end_time_arr[i] == 0) {
             if (type == READ) {
-                end_time_arr[i] = start_time_arr[i] + ssdconf->reg_read_delay + ssdconf->cell_read_delay;
+                end_time_arr[i] = start_time_arr[i] + ssdconf->reg_read_delay + 
+                    ssdconf->cell_read_delay;
             } else if (type == WRITE) {
-                end_time_arr[i] = start_time_arr[i] + ssdconf->reg_write_delay + ssdconf->cell_program_delay;
+                end_time_arr[i] = start_time_arr[i] + ssdconf->reg_write_delay + 
+                    ssdconf->cell_program_delay;
             }
         }
     }
@@ -810,19 +729,22 @@ int64_t CALC_IO_LATENCY(IDEState *s, io_request *request)
     min_start_time = start_time_arr[0];
     max_end_time = end_time_arr[0];
 
-    if (size > 1) {
-        for (i = 1; i < size; i++) {
-            if (min_start_time > start_time_arr[i]) {
-                min_start_time = start_time_arr[i];
-            }
-            if (max_end_time < end_time_arr[i]) {
-                max_end_time = end_time_arr[i];
-            }
+    for (i = 1; i < size; i++) {
+        if (min_start_time > start_time_arr[i]) {
+            min_start_time = start_time_arr[i];
+        }
+        if (max_end_time < end_time_arr[i]) {
+            max_end_time = end_time_arr[i];
         }
     }
 
-    assert(request->request_size > 0);
-    latency = (max_end_time - min_start_time)/(request->request_size);
+    //latency = (max_end_time - min_start_time)/(request->request_size);
+    latency = max_end_time - min_start_time;
+
+    /* Coperd: r/w latency */
+    s->bs->wait = latency + get_usec();
+    //printf("[%s] wait = %"PRId64"\n", get_ssd_name(s), s->bs->wait);
+    mylog("latency: %" PRId64 ", wait=%" PRId64 "\n", latency, s->bs->wait);
 
     return latency;
 }

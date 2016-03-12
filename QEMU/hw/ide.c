@@ -25,17 +25,19 @@
 #include "ide.h"
 #include "ssd.h"
 #include "ssd_util.h"
+#include "../mytrace.h"
 
 #ifdef TARGET_I386
 	#include "ssd.h"  //Include SSD Features
 int trim_cnt = 0;
 #endif
 
+#define DEBUG_LATENCY
+
 /* debug IDE devices */
 //#define DEBUG_IDE
 //#define DEBUG_IDE_ATAPI
 //#define DEBUG_AIO
-//#define DEBUG_ERR
 #define DEBUG_DSM
 #define USE_DMA_CDROM
 
@@ -814,41 +816,23 @@ static void ide_sector_read(IDEState *s)
 #endif
         ide_transfer_stop(s);
     } else {
-        if (n > s->req_nb_sectors) /* Coperd: for each interrupt, we can only transfer req_nb_setors */
+        if (n > s->req_nb_sectors) 
             n = s->req_nb_sectors;
-#if defined(DEBUG_IDE)
-    printf("[%s] READ starting sector=%" PRId64 ", length = %d\n", __FUNCTION__, sector_num, n);
-#endif
-
-#ifdef DEBUG_ERR
-#define MB (1024*1024)
-        if (s == vm_ide[0] && sector_num >= 100*MB/512 && sector_num <= 200*MB/512) {
-            s->nerr_pio++;
-            printf("[%s, %d] ADDRESS 100~200 MB unreadable, ==[[PIO]]== reporting erroring\n", s->ssd.name, s->nerr_pio);
-            ide_rw_error(s);
-            return;
-        } else {
-            s->nsuc_pio++;
-            printf("**[[%s, %d PIO]]** NORMAL READING ========\n", s->ssd.name, s->nsuc_pio);
-        }
-#endif
 
 #ifdef SSD_EMULATION
-         ret = SSD_READ(s, sector_num, n);
+#ifdef DEBUG_LATENCY
+         mylog("[%s] pio_read sector_num=%" PRId64 " n=%d\n", get_ssd_name(s), 
+                 sector_num, n);
+#endif
+         SSD_READ(s, sector_num, n);
 #endif 
 
-        /* Coperd: read data from drive to controller buffer first */
         ret = bdrv_read(s->bs, sector_num, s->io_buffer, n); 
-        /* Coperd: check if any errors happen during the previous read,
-         * if no error, then the host should read data from controller buffer to memory now
-         * otherwise, set the corresponding ERROR bits and let the host (driver) know this
-         */
         if (ret != 0) {
             ide_rw_error(s);
             return;
         }
 
-        /* Coperd: data transferred to host (s->dataptr), when is dataptr set??? */
         ide_transfer_start(s, s->io_buffer, 512 * n, ide_sector_read); 
         ide_set_irq(s);
         ide_set_sector(s, sector_num + n);
@@ -985,32 +969,36 @@ static int dma_buf_rw(BMDMAState *bm, int is_write)
 static void ide_read_dma_cb(void *opaque, int ret)
 {
     BMDMAState *bm = opaque;
-    IDEState *s = bm->ide_if; /* Coperd: we believe which IDE device this BMDMA is for is set before this transfer */
+    IDEState *s = bm->ide_if; 
     int n;
     int64_t sector_num;
 
-    /* Coperd: check the transfer status of last time first??? */
     if (ret < 0) {
-        /* Coperd: dma_buf_commit deltes sg list directly, this means that the already transferred data to the buffer are released because some errors happen during the transfer??? */
-        dma_buf_commit(s, 1); /* Coperd: free s scattergather list */
+        dma_buf_commit(s, 1); 
         ide_dma_error(s);
         return;
     }
 
-    /* Coperd: actual DMA transfer here */
-    n = s->io_buffer_size >> 9; /* Coperd: io_buffer_size means size of finished transfer */
-    sector_num = ide_get_sector(s); /* Coperd: transfer from sector sector_num (e.g. sector #8000) */
+    n = s->io_buffer_size >> 9; 
+    sector_num = ide_get_sector(s); 
+#ifdef DEBUG_LATENCY
+    int sl = n;
+    int64_t sn = sector_num;
+#endif
     if (n > 0) {
-        dma_buf_commit(s, 1);   /* Coperd: why should we destroy scatergather list here??? */
+        dma_buf_commit(s, 1);
         sector_num += n;
-        ide_set_sector(s, sector_num); /* Coperd: transform sector_num to LBA addr, write val to LBA registers */
-        s->nsector -= n; /* Coperd: above codes should have finished some transfering, but where does it transfer data to guest memory??? */
+        ide_set_sector(s, sector_num); 
+        s->nsector -= n; 
     }
 
     /* end of transfer ? */
-    if (s->nsector == 0) { /* Coperd: READY_STAT -> DRDY, driver is ready to accept another CMD */
+    if (s->nsector == 0) { 
+#ifdef DEBUG_LATENCY
+        mylog("dma_completion sector_num=%" PRId64 " n=%d\n", sn, sl);
+#endif
         s->status = READY_STAT | SEEK_STAT;
-        ide_set_irq(s); /* Coperd: set the irq to let the host know the DMA transfer has finished */
+        ide_set_irq(s); 
 eot:
         bm->status &= ~BM_STATUS_DMAING;
         bm->status |= BM_STATUS_INT;
@@ -1024,32 +1012,20 @@ eot:
     n = s->nsector;
     s->io_buffer_index = 0;
     s->io_buffer_size = n * 512;
-    if (dma_buf_prepare(bm, 1) == 0) /* Coperd: put all data to dma's scattergather list (meaning the corresponding guest space???) */
+    if (dma_buf_prepare(bm, 1) == 0)
         goto eot;
 #ifdef DEBUG_AIO
     printf("aio_read: sector_num=%" PRId64 " n=%d\n", sector_num, n);
 #endif
 
-#ifdef DEBUG_ERR
-#define MB (1024*1024)
-    if (s == vm_ide[0] && sector_num >= 100*MB/512 && sector_num <= 200*MB/512) {
-        s->nerr_dma++;
-        printf("[%s, %d] ADDRESS 100~200 MB unreadable, ==[[DMA]]== reporting erroring\n", s->ssd.name, s->nerr_dma);
-        dma_buf_commit(s, 1);
-        ide_dma_error(s);
-        return;
-    } else {
-        s->nsuc_dma++;
-        printf("**[[%s, %d DMA]]** NORMAL READING ========\n", s->ssd.name, s->nsuc_dma);
-    }
-#endif
-
 #ifdef SSD_EMULATION
-    //printf("[%s] About to execute SSD_READ(%d, %d)\n", __FUNCTION__, n, sector_num);
+#ifdef DEBUG_LATENCY
+    mylog("[%s] dma_read sector_num=%" PRId64 " n=%d\n", get_ssd_name(s), 
+            sector_num, n);
+#endif
     SSD_READ(s, sector_num, n);
 #endif
 
-    /* Coperd: what does this do??? I guess it reads data from backing file to IDE buffer (s->sg here) */
     bm->aiocb = dma_bdrv_read(s->bs, &s->sg, sector_num, ide_read_dma_cb, bm);
     ide_dma_submit_check(s, ide_read_dma_cb, bm);
 }
@@ -2910,6 +2886,11 @@ static void ide_init2(IDEState *ide_state,
         s->io_buffer = qemu_blockalign(s->bs, IDE_DMA_BUF_SECTORS*512 + 4);
         /* Coperd: s->bs != NULL means that there is a drive plugged, mayabe harddisk or cdrom [I think this is true] */
         if (s->bs) {  
+            /* Coperd: mark this device as IDE */
+            s->bs->is_from_ide = 1;
+            s->bs->wait = 0;
+            s->wait = 0; 
+
             bdrv_get_geometry(s->bs, &nb_sectors);
             bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);
             s->cylinders = cylinders;

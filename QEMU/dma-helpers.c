@@ -9,6 +9,9 @@
 
 #include "dma.h"
 #include "block_int.h"
+#include "mytrace.h"
+
+//#define DEBUG_LATENCY
 
 void qemu_sglist_init(QEMUSGList *qsg, int alloc_hint)
 {
@@ -36,7 +39,6 @@ void qemu_sglist_destroy(QEMUSGList *qsg)
     qemu_free(qsg->sg);
 }
 
-/* Coperd: why do we need both iov and sg here??? */
 typedef struct {
     BlockDriverAIOCB common;
     BlockDriverState *bs;
@@ -93,6 +95,9 @@ static void dma_bdrv_cb(void *opaque, int ret)
 
     if (dbs->sg_cur_index == dbs->sg->nsg || ret < 0) {
         dbs->common.cb(dbs->common.opaque, ret);
+#ifdef DEBUG_LATENCY
+    mylog("DMAAIO CB(%p), length: %ld\n", dbs->common.cb, dbs->iov.size/512);
+#endif
         qemu_iovec_destroy(&dbs->iov);
         qemu_aio_release(dbs);
         return;

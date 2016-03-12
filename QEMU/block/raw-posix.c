@@ -72,7 +72,10 @@
 #include <sys/diskslice.h>
 #endif
 
+#include "../mytrace.h"
+
 //#define DEBUG_FLOPPY
+#define DEBUG_LATENCY
 
 #define DEBUG_BLOCK
 #if defined(DEBUG_BLOCK)
@@ -563,6 +566,11 @@ static void posix_aio_read(void *opaque)
                 /* remove the request */
                 *pacb = acb->next;
                 /* call the callback */
+#ifdef DEBUG_LATENCY
+                if (acb->aiocb.is_from_ide == 1)
+                    mylog("RawAIO CB(%p), sector: %ld, length: %ld\n", acb->common.cb,
+                            acb->aiocb.aio_offset/512, acb->aiocb.aio_nbytes/512);
+#endif
                 acb->common.cb(acb->common.opaque, ret);
                 qemu_aio_release(acb);
                 break;
@@ -672,6 +680,15 @@ static RawAIOCB *raw_aio_setup(BlockDriverState *bs, int64_t sector_num,
     acb = qemu_aio_get(&raw_aio_pool, bs, cb, opaque);
     if (!acb)
         return NULL;
+
+    /* Coperd: mark whether this qemu_paio coms from IDE */
+    acb->aiocb.is_from_ide = bs->is_from_ide;
+    acb->aiocb.wait = bs->wait;
+#ifdef DEBUG_LATENCY
+    if (bs->is_from_ide == 1)
+        mylog("raw aio, sector_num=%" PRId64 " n=%d\n", sector_num, nb_sectors);
+#endif
+
     acb->aiocb.aio_fildes = s->fd;
     acb->aiocb.ev_signo = SIGUSR2;
     acb->aiocb.aio_iov = qiov->iov;

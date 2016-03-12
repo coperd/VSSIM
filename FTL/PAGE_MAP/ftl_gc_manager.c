@@ -10,6 +10,7 @@
 #include "ftl_mapping_manager.h"
 #include "ftl_inverse_mapping_manager.h"
 #include "ssd_util.h"
+#include "mytrace.h"
 
 #define DEBUG_GC
 
@@ -50,6 +51,8 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
             ret = GARBAGE_COLLECTION(s);
             if (ret == FAIL) {
                 break;
+            } else {
+                GC_timestamp += 12;
             }
         }
     }

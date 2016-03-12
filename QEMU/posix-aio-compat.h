@@ -26,6 +26,9 @@
 
 struct qemu_paiocb
 {
+    int is_from_ide;
+    int64_t wait;
+
     int aio_fildes;
     union {
         struct iovec *aio_iov;
@@ -64,5 +67,8 @@ int qemu_paio_ioctl(struct qemu_paiocb *aiocb);
 int qemu_paio_error(struct qemu_paiocb *aiocb);
 ssize_t qemu_paio_return(struct qemu_paiocb *aiocb);
 int qemu_paio_cancel(int fd, struct qemu_paiocb *aiocb);
+
+int qemu_paio_reread(struct qemu_paiocb *aiocb);
+int qemu_paio_rewrite(struct qemu_paiocb *aiocb);
 
 #endif

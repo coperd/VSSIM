@@ -19,11 +19,10 @@ extern int64_t GC_timestamp;
 
 int64_t get_timestamp(void);
 
-#define log(fmt, ...) \
+#define mylog(fmt, ...) \
     do { \
-            fprintf(stderr, "[%" PRId64 "] %d:%s(): " fmt, get_timestamp(), \
-                    __LINE__, __func__, __VA_ARGS__); \
+            fprintf(stderr, "[%" PRId64 "] %s(): " fmt, get_timestamp(), \
+                    __func__, ## __VA_ARGS__); \
     } while (0)
-
 
 #endif
