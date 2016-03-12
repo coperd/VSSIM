@@ -1,32 +1,13 @@
-# Object files
 *.o
-*.ko
-*.obj
-*.elf
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
+*.d
 *.a
-*.la
-*.lo
+*.dat
+*.bin
 
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
-# Debug files
-*.dSYM/
+qemu-system-x86_64
+qemu-nbd
+qemu-img
+qemu-io
+data/
+benchmark/
+cscope*
