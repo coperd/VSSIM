@@ -28,7 +28,7 @@
 
 //#define SSD_EMULATION
 /* Enable EBUSY mechanism here */
-//#define DEBUG_ERR
+#define DEBUG_ERR
 
 /* FTL */
 /* VSSIM Function */

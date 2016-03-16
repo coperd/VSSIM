@@ -800,6 +800,14 @@ void ide_rw_error(IDEState *s) {
 
 static void ide_sector_read(IDEState *s)
 {
+    int64_t sector_num;
+    int ret, n;
+
+    s->status = READY_STAT | SEEK_STAT;
+    s->error = 0; /* not needed by IDE spec, but needed by Windows */
+    sector_num = ide_get_sector(s);
+    n = s->nsector; /* Coperd: number of sectors needs to be read */
+
 #ifdef DEBUG_ERR
 #define MB (1024*1024)
         if (s == vm_ide[0] && sector_num >= 100*MB/512 && sector_num <= 200*MB/512) {
@@ -813,13 +821,6 @@ static void ide_sector_read(IDEState *s)
         }
 #endif
 
-    int64_t sector_num;
-    int ret, n;
-
-    s->status = READY_STAT | SEEK_STAT;
-    s->error = 0; /* not needed by IDE spec, but needed by Windows */
-    sector_num = ide_get_sector(s);
-    n = s->nsector; /* Coperd: number of sectors needs to be read */
     if (n == 0) {
         /* no more sector to read from disk */
 #ifdef DEBUG_IDE
@@ -985,7 +986,13 @@ static int dma_buf_rw(BMDMAState *bm, int is_write)
 
 static void ide_read_dma_cb(void *opaque, int ret)
 {
+    BMDMAState *bm = opaque;
+    IDEState *s = bm->ide_if; /* Coperd: we believe which IDE device this BMDMA is for is set before this transfer */
+    int n;
+    int64_t sector_num;
+
 #ifdef DEBUG_ERR
+    sector_num = ide_get_sector(s); /* Coperd: transfer from sector sector_num (e.g. sector #8000) */
 #define MB (1024*1024)
     if (s == vm_ide[0] && sector_num >= 100*MB/512 && sector_num <= 200*MB/512) {
         s->nerr_dma++;
@@ -998,11 +1005,6 @@ static void ide_read_dma_cb(void *opaque, int ret)
         printf("**[[%s, %d DMA]]** NORMAL READING ========\n", s->ssd.name, s->nsuc_dma);
     }
 #endif
-
-    BMDMAState *bm = opaque;
-    IDEState *s = bm->ide_if; /* Coperd: we believe which IDE device this BMDMA is for is set before this transfer */
-    int n;
-    int64_t sector_num;
 
     /* Coperd: check the transfer status of last time first??? */
     if (ret < 0) {
