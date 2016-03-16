@@ -800,6 +800,19 @@ void ide_rw_error(IDEState *s) {
 
 static void ide_sector_read(IDEState *s)
 {
+#ifdef DEBUG_ERR
+#define MB (1024*1024)
+        if (s == vm_ide[0] && sector_num >= 100*MB/512 && sector_num <= 200*MB/512) {
+            s->nerr_pio++;
+            printf("[%s, %d] ADDRESS 100~200 MB unreadable, ==[[PIO]]== reporting erroring\n", s->ssd.name, s->nerr_pio);
+            ide_rw_error(s);
+            return;
+        } else {
+            s->nsuc_pio++;
+            printf("**[[%s, %d PIO]]** NORMAL READING ========\n", s->ssd.name, s->nsuc_pio);
+        }
+#endif
+
     int64_t sector_num;
     int ret, n;
 
@@ -820,18 +833,6 @@ static void ide_sector_read(IDEState *s)
     printf("[%s] READ starting sector=%" PRId64 ", length = %d\n", __FUNCTION__, sector_num, n);
 #endif
 
-#ifdef DEBUG_ERR
-#define MB (1024*1024)
-        if (s == vm_ide[0] && sector_num >= 100*MB/512 && sector_num <= 200*MB/512) {
-            s->nerr_pio++;
-            printf("[%s, %d] ADDRESS 100~200 MB unreadable, ==[[PIO]]== reporting erroring\n", s->ssd.name, s->nerr_pio);
-            ide_rw_error(s);
-            return;
-        } else {
-            s->nsuc_pio++;
-            printf("**[[%s, %d PIO]]** NORMAL READING ========\n", s->ssd.name, s->nsuc_pio);
-        }
-#endif
 
 #ifdef SSD_EMULATION
          ret = SSD_READ(s, sector_num, n);
@@ -984,6 +985,20 @@ static int dma_buf_rw(BMDMAState *bm, int is_write)
 
 static void ide_read_dma_cb(void *opaque, int ret)
 {
+#ifdef DEBUG_ERR
+#define MB (1024*1024)
+    if (s == vm_ide[0] && sector_num >= 100*MB/512 && sector_num <= 200*MB/512) {
+        s->nerr_dma++;
+        printf("[%s, %d] ADDRESS 100~200 MB unreadable, ==[[DMA]]== reporting erroring\n", s->ssd.name, s->nerr_dma);
+        dma_buf_commit(s, 1);
+        ide_dma_error(s);
+        return;
+    } else {
+        s->nsuc_dma++;
+        printf("**[[%s, %d DMA]]** NORMAL READING ========\n", s->ssd.name, s->nsuc_dma);
+    }
+#endif
+
     BMDMAState *bm = opaque;
     IDEState *s = bm->ide_if; /* Coperd: we believe which IDE device this BMDMA is for is set before this transfer */
     int n;
@@ -1030,19 +1045,6 @@ eot:
     printf("aio_read: sector_num=%" PRId64 " n=%d\n", sector_num, n);
 #endif
 
-#ifdef DEBUG_ERR
-#define MB (1024*1024)
-    if (s == vm_ide[0] && sector_num >= 100*MB/512 && sector_num <= 200*MB/512) {
-        s->nerr_dma++;
-        printf("[%s, %d] ADDRESS 100~200 MB unreadable, ==[[DMA]]== reporting erroring\n", s->ssd.name, s->nerr_dma);
-        dma_buf_commit(s, 1);
-        ide_dma_error(s);
-        return;
-    } else {
-        s->nsuc_dma++;
-        printf("**[[%s, %d DMA]]** NORMAL READING ========\n", s->ssd.name, s->nsuc_dma);
-    }
-#endif
 
 #ifdef SSD_EMULATION
     //printf("[%s] About to execute SSD_READ(%d, %d)\n", __FUNCTION__, n, sector_num);
