@@ -11,3 +11,5 @@ qemu-io
 data/
 benchmark/
 cscope*
+*.core
+*.log
