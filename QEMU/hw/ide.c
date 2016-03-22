@@ -817,7 +817,7 @@ static void ide_sector_read(IDEState *s)
             return;
         } else {
             s->nsuc_pio++;
-            printf("**[[%s, %d PIO]]** NORMAL READING ========\n", s->ssd.name, s->nsuc_pio);
+            printf("**[[%d PIO]]** NORMAL READING ========\n", s->nsuc_pio);
         }
 #endif
 
@@ -994,15 +994,15 @@ static void ide_read_dma_cb(void *opaque, int ret)
 #ifdef DEBUG_ERR
     sector_num = ide_get_sector(s); /* Coperd: transfer from sector sector_num (e.g. sector #8000) */
 #define MB (1024*1024)
-    if (s == vm_ide[0] && sector_num >= 100*MB/512 && sector_num <= 200*MB/512) {
+    if ((s == vm_ide[0]) && ((sector_num >= 100*MB/512)) && (sector_num <= (200*MB/512))) {
         s->nerr_dma++;
-        printf("[%s, %d] ADDRESS 100~200 MB unreadable, ==[[DMA]]== reporting erroring\n", s->ssd.name, s->nerr_dma);
-        dma_buf_commit(s, 1);
+        printf("[%d] ADDRESS 100~200 MB unreadable, ==[[DMA]]== reporting erroring\n", s->nerr_dma);
+        //dma_buf_commit(s, 1);
         ide_dma_error(s);
         return;
     } else {
         s->nsuc_dma++;
-        printf("**[[%s, %d DMA]]** NORMAL READING ========\n", s->ssd.name, s->nsuc_dma);
+        printf("**[%d DMA]]** NORMAL READING ========\n", s->nsuc_dma);
     }
 #endif
 
@@ -2938,16 +2938,18 @@ static void ide_init2(IDEState *ide_state,
                 ide_sector_write_timer_cb, s);
         ide_reset(s);
 
-#ifdef SSD_EMULATION
+//#ifdef SSD_EMULATION
         /* Coperd: BlockDriverState: *BlockDriver -> if there is medium */
         vm_ide[ide_idx++] = s;
 
         if (s->bs && s->bs->drv && !s->is_cdrom) { /* Coperd: simplily, we use this to check if there is harddisk attached to this port */
             printf("INIT SSD[%d] from [%s]\n", ide_idx, s->bs->filename);
+#ifdef SSD_EMULATION
             SSD_INIT(s);
+#endif
         } else {
         }
-#endif
+//#endif
     }
 
 }
