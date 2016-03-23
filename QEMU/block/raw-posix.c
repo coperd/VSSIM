@@ -74,8 +74,10 @@
 
 #include "../mytrace.h"
 
+//extern int64_t GC_WHOLE_ENDTIME;
+
 //#define DEBUG_FLOPPY
-#define DEBUG_LATENCY
+//#define DEBUG_LATENCY
 
 #define DEBUG_BLOCK
 #if defined(DEBUG_BLOCK)
@@ -683,7 +685,6 @@ static RawAIOCB *raw_aio_setup(BlockDriverState *bs, int64_t sector_num,
 
     /* Coperd: mark whether this qemu_paio coms from IDE */
     acb->aiocb.is_from_ide = bs->is_from_ide;
-    acb->aiocb.wait = bs->wait;
 #ifdef DEBUG_LATENCY
     if (bs->is_from_ide == 1)
         mylog("raw aio, sector_num=%" PRId64 " n=%d\n", sector_num, nb_sectors);

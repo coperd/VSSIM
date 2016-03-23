@@ -32,7 +32,7 @@
 int trim_cnt = 0;
 #endif
 
-#define DEBUG_LATENCY
+//#define DEBUG_LATENCY
 
 /* debug IDE devices */
 //#define DEBUG_IDE
@@ -2888,8 +2888,6 @@ static void ide_init2(IDEState *ide_state,
         if (s->bs) {  
             /* Coperd: mark this device as IDE */
             s->bs->is_from_ide = 1;
-            s->bs->wait = 0;
-            s->wait = 0; 
 
             bdrv_get_geometry(s->bs, &nb_sectors);
             bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);

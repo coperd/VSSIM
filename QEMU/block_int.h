@@ -113,7 +113,6 @@ struct BlockDriver {
 
 struct BlockDriverState {
     int is_from_ide;
-    int64_t wait;
 
     int64_t total_sectors; /* if we are reading a disk image, give its
                               size in sectors */

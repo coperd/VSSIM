@@ -10,6 +10,8 @@
 #include "vssim_config_manager.h"
 #include "ssd_util.h"
 
+extern int NB_CHANNEL, NB_CHIP;
+
 void INIT_VSSIM_CONFIG(IDEState *s)
 {
     SSDState *ssd = &(s->ssd);
@@ -61,6 +63,7 @@ void INIT_VSSIM_CONFIG(IDEState *s)
                 fscanf(pfData, "%d", &ssdconf->io_parallelism);
             } else if (strcmp(szCommand, "CHANNEL_NB") == 0) {
                 fscanf(pfData, "%d", &ssdconf->channel_nb);
+                NB_CHANNEL = ssdconf->channel_nb;
             } else if (strcmp(szCommand, "OVP") == 0) {
                 fscanf(pfData, "%d", &ssdconf->ovp);
             } else if (strcmp(szCommand, "GC_THRESHOLD") == 0) {
@@ -204,7 +207,7 @@ void INIT_VSSIM_CONFIG(IDEState *s)
     if (ssdconf->ovp != 0) {
         ssdconf->gc_victim_nb = ssdconf->flash_nb * ssdconf->block_nb * ssdconf->ovp / 100 / 2;
     } else {
-        ssdconf->gc_victim_nb = 20;
+        ssdconf->gc_victim_nb = 1; /* Coperd: for each time, we only clean one GC */
     }
 #endif
 
@@ -213,6 +216,8 @@ void INIT_VSSIM_CONFIG(IDEState *s)
     ssdconf->map_entry_size = sizeof(int32_t);
     ssdconf->map_entries_per_page = ssdconf->page_size / ssdconf->map_entry_size;
     ssdconf->map_entry_nb = ssdconf->page_mapping_entry_nb / ssdconf->map_entries_per_page;	
+
+    NB_CHIP = ssdconf->flash_nb;
 #endif
 
     /* Polymorphic FTL */

@@ -192,7 +192,6 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
         ppn = GET_MAPPING_INFO(s, lpn);
 
         if (ppn == -1) {
-            printf("[%s, %" PRId32 "] no mapping info\n", get_ssd_name(s), lba);
 #ifdef DEBUG_LATENCY
             mylog("[%s] no mapping\n", get_ssd_name(s));
 #endif 

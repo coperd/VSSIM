@@ -77,6 +77,8 @@ void INIT_IO_BUFFER(IDEState *s)
     pthread_mutex_init(&ssd->eq_lock, NULL);
     pthread_mutex_init(&ssd->cq_lock, NULL);
 
+    mylog(" @@@@creating ssd_thread_main_loop\n");
+
     int ret = pthread_create(&ssd->ssd_thread_id, NULL, SSD_THREAD_MAIN_LOOP, s);
     if (ret) die2(ret, "pthread_create");
 #endif

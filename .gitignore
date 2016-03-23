@@ -3,6 +3,7 @@
 *.a
 *.dat
 *.bin
+*.log
 
 qemu-system-x86_64
 qemu-nbd

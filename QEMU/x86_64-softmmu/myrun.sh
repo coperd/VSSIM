@@ -49,9 +49,12 @@ fi
 $VSSIMQEMU \
     -name "VSSIM" \
     -smp 2 \
-    -m 1024 \
+    -m 2048 \
     -drive file=$LDSK,if=virtio,boot=on \
     -drive file=$VSSD1,if=ide \
+    -drive file=$VSSD2,if=ide \
+    -drive file=$VSSD3,if=ide \
+    -drive file=$VSSD4,if=ide \
     -enable-kvm \
     -net nic,model=virtio \
     -net user,hostfwd=tcp::8080-:22 \

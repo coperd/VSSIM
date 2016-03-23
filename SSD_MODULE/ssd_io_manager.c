@@ -384,7 +384,7 @@ int SSD_CH_RECORD(IDEState *s, int channel, int cmd, int offset, int ret)
         ssd->old_channel_time += ssdconf->channel_switch_delay_r;
     } else if (cmd == WRITE && offset != 0 && ret == 0) {
         ssd->old_channel_time += ssdconf->channel_switch_delay_w;
-    } else {
+    } else { /* Coperd: GC_READ comes here */
         ssd->old_channel_time = get_usec();
     }
 
@@ -400,7 +400,7 @@ int SSD_REG_RECORD(IDEState *s, int reg, int cmd,
     ssd->reg_io_cmd[reg] = cmd;
     ssd->reg_io_type[reg] = type;
 
-    int old_ch_time = ssd->old_channel_time;
+    int64_t old_ch_time = ssd->old_channel_time;
     int ch_s_delay_w = ssdconf->channel_switch_delay_w;
 
     if (cmd == WRITE) {
@@ -532,11 +532,14 @@ int64_t SSD_CH_SWITCH_DELAY(IDEState *s, int channel)
     diff = start - ssd->old_channel_time;
 #endif
 #endif
+
+#if 0
     if (diff < switch_delay) {
         while (diff < switch_delay) {
             diff = get_usec() - ssd->old_channel_time;
         }
     }
+#endif
     end = get_usec();
 
     return end-start;
@@ -569,12 +572,15 @@ int SSD_REG_WRITE_DELAY(IDEState *s, int reg)
 #endif
 #endif
 
+#if 0
     if (diff < ssdconf->reg_write_delay) {
         while (diff < ssdconf->reg_write_delay) {
             diff = get_usec() - time_stamp;
         }
         ret = SUCCESS;
     }
+#endif
+    ret = SUCCESS;
     end = get_usec();
 
     /* Send Delay Info To Perf Checker */
@@ -614,12 +620,15 @@ int SSD_REG_READ_DELAY(IDEState *s, int reg)
   #endif
 #endif
 
+#if 0
 	if (diff < ssdconf->reg_read_delay) {
 		while (diff < ssdconf->reg_read_delay) {
 			diff = get_usec() - time_stamp;
 		}
 		ret = SUCCESS;
 	}
+#endif
+    ret = SUCCESS;
 	end = get_usec();
 
 
@@ -667,9 +676,11 @@ int SSD_CELL_WRITE_DELAY(IDEState *s, int reg)
 
     if (diff < ssdconf->cell_program_delay) {
         ssd->init_diff_reg = diff;
+#if 0
         while (diff < ssdconf->cell_program_delay) {
             diff = get_usec() - time_stamp + ssd->io_overhead[reg];
         }
+#endif
         ret = 1;
     }
     end = get_usec();
@@ -720,9 +731,11 @@ int SSD_CELL_READ_DELAY(IDEState *s, int reg)
 
     if (diff < REG_DELAY) {
         ssd->init_diff_reg = diff;
+#if 0
         while (diff < REG_DELAY) {
             diff = get_usec() - time_stamp + ssd->io_overhead[reg];
         }
+#endif
         ret = SUCCESS;
 
     }
@@ -757,12 +770,15 @@ int SSD_BLOCK_ERASE_DELAY(IDEState *s, int reg)
     /* Block Erase Delay */
     start = get_usec();
     diff = get_usec() - ssd->cell_io_time[reg];
+#if 0
     if (diff < ssdconf->block_erase_delay) {
         while (diff < ssdconf->block_erase_delay) {
             diff = get_usec() - time_stamp;
         }
         ret = SUCCESS;
     }
+#endif
+    ret = SUCCESS;
     end = get_usec();
 
     /* Send Delay Info to Perf Checker */
