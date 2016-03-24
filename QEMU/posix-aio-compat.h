@@ -17,6 +17,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdbool.h>
 
 #include "sys-queue.h"
 #include "mytrace.h"
@@ -74,5 +75,8 @@ int qemu_paio_cancel(int fd, struct qemu_paiocb *aiocb);
 int qemu_paio_resubmit(struct qemu_paiocb *aiocb, int type);
 int qemu_paio_reread(struct qemu_paiocb *aiocb);
 int qemu_paio_rewrite(struct qemu_paiocb *aiocb);
+
+bool blocked_by_gc(struct qemu_paiocb *aiocb);
+void ret_eio(struct qemu_paiocb *aiocb, pid_t pid);
 
 #endif

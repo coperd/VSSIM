@@ -37,6 +37,7 @@ static int max_threads = 64;
 static int cur_threads = 0;
 static int idle_threads = 0;
 static TAILQ_HEAD(, qemu_paiocb) request_list;
+static TAILQ_HEAD(, qemu_paiocb) blocking_list;
 
 #ifdef HAVE_PREADV
 static int preadv_present = 1;
@@ -283,17 +284,31 @@ bool blocked_by_gc(struct qemu_paiocb *aiocb)
 #ifdef DEBUG_LATENCY
     mylog("GC_WHOLE_ENDTIME: %" PRId64 "\n", GC_WHOLE_ENDTIME);
 #endif
-    if (aiocb->is_from_ide == 1 && get_timestamp() < GC_WHOLE_ENDTIME)
+    if (aiocb->is_from_ide == 1 && aiocb->aio_type == QEMU_PAIO_READ && 
+            get_timestamp() < GC_WHOLE_ENDTIME)
         return true;
 
     return false;
+}
+
+/* Coperd: previously kill is used by worker threads, would it be problematic 
+ * here ??? 
+ * Next step: may consider to add a specific qeuue for blocked I/Os and let 
+ * worker threads handle this queue first 
+ */
+void ret_eio(struct qemu_paiocb *aiocb, pid_t pid)
+{
+    //mutex_lock(&lock);
+    aiocb->active = 1;
+    aiocb->ret = -EIO;
+    //mutex_unlock(&lock);
+    if (kill(pid, aiocb->ev_signo)) die("kill failed");
 }
 
 static void *aio_thread(void *unused)
 {
     pid_t pid;
     sigset_t set;
-    int64_t diff;
 
     pid = getpid();
 
@@ -326,24 +341,29 @@ static void *aio_thread(void *unused)
 
 #if 0
         mylog("This shoudn't be executed, please call 911 if you see this msg");
+#endif
         aiocb = TAILQ_FIRST(&request_list);
         TAILQ_REMOVE(&request_list, aiocb, node);
-#endif
 
+#if 0
         int tq_cnt = 0;
         TAILQ_FOREACH(aiocb, &request_list, node) {
-            /* only remove non-GC requests out */
+            /* Coperd: return EIO upon GC */
             tq_cnt++;
-            if (!blocked_by_gc(aiocb)) {
-                break;
+            if (blocked_by_gc(aiocb)) {
+                TAILQ_REMOVE(&request_list, aiocb, node);
+                ret_eio(aiocb, pid);
+                //break;
                 //TAILQ_REMOVE(&request_list, aiocb, node);
                 //break;
             }
         }
 
+        /* Coperd: normal handling */
         if (aiocb == NULL)
             break;
         TAILQ_REMOVE(&request_list, aiocb, node);
+#endif
 
         aiocb->active = 1;
         idle_threads--;
@@ -414,12 +434,16 @@ int qemu_paio_init(struct qemu_paioinit *aioinit)
     if (ret) die2(ret, "pthread_attr_setdetachstate");
 
     TAILQ_INIT(&request_list);
+    TAILQ_INIT(&blocking_list);
 
     return 0;
 }
 
 static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
 {
+    pid_t pid;
+    pid = getpid();
+
     aiocb->aio_type = type;
 
     /* Coperd: hardcoded timestamp */
@@ -436,17 +460,20 @@ static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
     if (idle_threads == 0 && cur_threads < max_threads) {
         spawn_thread();
     }
-    TAILQ_INSERT_TAIL(&request_list, aiocb, node);
+
+    /* Coperd: if I/O is blocked by GC, return EIO directly */
+    if (blocked_by_gc(aiocb)) {
+        ret_eio(aiocb, pid);
+        //TAILQ_INSERT_TAIL(&blocking_list, aiocb, node);
+    } else {
+        TAILQ_INSERT_TAIL(&request_list, aiocb, node);
+    }
     mutex_unlock(&lock);
     cond_signal(&cond);
 
     return 0;
 }
 
-int qemu_paio_block_read(struct qemu_paiocb *aiocb, int type)
-{
-
-}
 
 int qemu_paio_resubmit(struct qemu_paiocb *aiocb, int type)
 {
