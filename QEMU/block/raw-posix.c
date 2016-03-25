@@ -689,6 +689,7 @@ static RawAIOCB *raw_aio_setup(BlockDriverState *bs, int64_t sector_num,
     if (bs->is_from_ide == 1)
         mylog("raw aio, sector_num=%" PRId64 " n=%d\n", sector_num, nb_sectors);
 #endif
+    acb->aiocb.is_blocked = 0;
 
     acb->aiocb.aio_fildes = s->fd;
     acb->aiocb.ev_signo = SIGUSR2;

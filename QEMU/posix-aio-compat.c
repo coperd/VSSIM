@@ -283,10 +283,27 @@ bool blocked_by_gc(struct qemu_paiocb *aiocb)
 #ifdef DEBUG_LATENCY
     mylog("GC_WHOLE_ENDTIME: %" PRId64 "\n", GC_WHOLE_ENDTIME);
 #endif
-    if (aiocb->is_from_ide == 1 && get_timestamp() < GC_WHOLE_ENDTIME)
+    if ((aiocb->is_from_ide == 1) && (aiocb->aio_type == QEMU_PAIO_READ) && 
+            (get_timestamp() < GC_WHOLE_ENDTIME))
         return true;
 
     return false;
+}
+
+/* Coperd: previously kill is used by worker threads, would it be problematic 
+ * here ??? 
+ * Next step: may consider to add a specific qeuue for blocked I/Os and let 
+ * worker threads handle this queue first 
+ */
+void ret_eio(struct qemu_paiocb *aiocb, pid_t pid)
+{
+    //mutex_lock(&lock);
+    aiocb->is_blocked = 1;
+    aiocb->active = 1;
+    aiocb->ret = -EIO;
+    //mutex_unlock(&lock);
+    //mylog("EIO: is_from_die=%d, r/w: %d\n", aiocb->is_from_ide, aiocb->aio_type);
+    //if (kill(pid, aiocb->ev_signo)) die("kill failed");
 }
 
 static void *aio_thread(void *unused)
@@ -361,7 +378,11 @@ static void *aio_thread(void *unused)
         switch (aiocb->aio_type) {
             case QEMU_PAIO_READ:
             case QEMU_PAIO_WRITE:
-                ret = handle_aiocb_rw(aiocb);
+                if (aiocb->is_blocked) {
+                    ret = -EIO;
+                } else {
+                    ret = handle_aiocb_rw(aiocb);
+                }
                 break;
             case QEMU_PAIO_IOCTL:
                 ret = handle_aiocb_ioctl(aiocb);
@@ -435,6 +456,21 @@ static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
     mutex_lock(&lock);
     if (idle_threads == 0 && cur_threads < max_threads) {
         spawn_thread();
+    }
+
+#if 0
+    if (aiocb->is_from_ide == 1) {
+        mylog("submit I/O: %d, %" PRId64 "\n", aiocb->aio_type, GC_WHOLE_ENDTIME);
+    }
+#endif
+
+    /* Coperd: if I/O is blocked by GC, return EIO directly */
+    if (blocked_by_gc(aiocb)) {
+        //ret_eio(aiocb, pid);
+        aiocb->is_blocked = 1;
+        //TAILQ_INSERT_TAIL(&blocking_list, aiocb, node);
+    } else {
+        aiocb->is_blocked = 0;
     }
     TAILQ_INSERT_TAIL(&request_list, aiocb, node);
     mutex_unlock(&lock);

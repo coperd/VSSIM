@@ -29,6 +29,7 @@ struct qemu_paiocb
 {
     int channel, chip;
 
+    int is_blocked;
     int is_from_ide;
     int64_t wait;
 
