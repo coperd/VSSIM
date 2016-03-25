@@ -284,6 +284,7 @@ bool blocked_by_gc(struct qemu_paiocb *aiocb)
 #ifdef DEBUG_LATENCY
     mylog("GC_WHOLE_ENDTIME: %" PRId64 "\n", GC_WHOLE_ENDTIME);
 #endif
+    /* Coperd: GC only blocks Read requests from IDE */
     if (aiocb->is_from_ide == 1 && aiocb->aio_type == QEMU_PAIO_READ && 
             get_timestamp() < GC_WHOLE_ENDTIME)
         return true;
@@ -380,6 +381,10 @@ static void *aio_thread(void *unused)
 
         switch (aiocb->aio_type) {
             case QEMU_PAIO_READ:
+                if (aiocb->is_blocked == 1) { 
+                    ret = -EIO;
+                    break;
+                }
             case QEMU_PAIO_WRITE:
                 ret = handle_aiocb_rw(aiocb);
                 break;
@@ -441,19 +446,8 @@ int qemu_paio_init(struct qemu_paioinit *aioinit)
 
 static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
 {
-    pid_t pid;
-    pid = getpid();
-
     aiocb->aio_type = type;
-
-    /* Coperd: hardcoded timestamp */
-    /* Coperd: wait is not needed anymore, since qemu overhead is large enough
-     * for Read/Write */
-    /*if (type == QEMU_PAIO_READ && aiocb->is_from_ide == 1) {
-        aiocb->wait = get_timestamp() + 240;
-    } else if (type == QEMU_PAIO_WRITE && aiocb->is_from_ide == 1) {
-        aiocb->wait = get_timestamp() + 940;
-    }*/
+    aiocb->is_blocked = 0; /* Coperd: by default, not blocked */
     aiocb->ret = -EINPROGRESS;
     aiocb->active = 0;
     mutex_lock(&lock);
@@ -461,13 +455,12 @@ static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
         spawn_thread();
     }
 
-    /* Coperd: if I/O is blocked by GC, return EIO directly */
+    /* Coperd: if I/O is blocked by GC, set is_blocked to 1 */
     if (blocked_by_gc(aiocb)) {
-        ret_eio(aiocb, pid);
-        //TAILQ_INSERT_TAIL(&blocking_list, aiocb, node);
-    } else {
-        TAILQ_INSERT_TAIL(&request_list, aiocb, node);
+        aiocb->is_blocked = 1;
     }
+
+    TAILQ_INSERT_TAIL(&request_list, aiocb, node);
     mutex_unlock(&lock);
     cond_signal(&cond);
 
