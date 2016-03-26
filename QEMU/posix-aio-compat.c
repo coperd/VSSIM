@@ -323,6 +323,7 @@ static void *aio_thread(void *unused)
         size_t ret = 0;
         qemu_timeval tv;
         struct timespec ts;
+        bool aiocb_blocked = false;
 
         qemu_gettimeofday(&tv);
         ts.tv_sec = tv.tv_sec + 10;
@@ -342,24 +343,36 @@ static void *aio_thread(void *unused)
 
 #if 0
         mylog("This shoudn't be executed, please call 911 if you see this msg");
+#endif
         aiocb = TAILQ_FIRST(&request_list);
         TAILQ_REMOVE(&request_list, aiocb, node);
-#endif
 
+#if 0
+        mylog("=============Searching for Eligible IO=========\n");
         int tq_cnt = 0;
         TAILQ_FOREACH(aiocb, &request_list, node) {
             /* only remove non-GC requests out */
             tq_cnt++;
+
             if (!blocked_by_gc(aiocb)) {
+                mylog("Get aiocb: ide: %d, type=%d, wait=%" PRId64 ", (%ld, %zd)\n", 
+                        aiocb->is_from_ide, aiocb->aio_type, aiocb->wait,
+                        aiocb->aio_offset/512, aiocb->aio_nbytes/512);
                 break;
                 //TAILQ_REMOVE(&request_list, aiocb, node);
                 //break;
             }
+
+            mylog("Skipping aiocb[%d]: ide: %d, type=%d, wait=%" PRId64 ", (%ld, %zd)\n", 
+                    tq_cnt, aiocb->is_from_ide, aiocb->aio_type, aiocb->wait,
+                    aiocb->aio_offset/512, aiocb->aio_nbytes/512);
         }
+        mylog("=================End of Searching==============\n\n");
 
         if (aiocb == NULL)
             break;
         TAILQ_REMOVE(&request_list, aiocb, node);
+#endif
 
         aiocb->active = 1;
         idle_threads--;
@@ -376,6 +389,15 @@ static void *aio_thread(void *unused)
 
         switch (aiocb->aio_type) {
             case QEMU_PAIO_READ:
+                if (blocked_by_gc(aiocb)) {
+                    mylog("blocked: (%" PRId64 ", %zu), wait=%ld\n", 
+                            aiocb->aio_offset/512, aiocb->aio_nbytes/512,
+                            aiocb->wait - get_timestamp());
+                    /* Coperd: insert I/O back to queue */
+                    qemu_paio_reread(aiocb);
+                    aiocb_blocked = true;
+                    break;
+                }
             case QEMU_PAIO_WRITE:
                 ret = handle_aiocb_rw(aiocb);
                 break;
@@ -387,16 +409,23 @@ static void *aio_thread(void *unused)
                 ret = -EINVAL;
                 break;
         }
+        if (aiocb->is_from_ide == 1) {
+            mylog("Handled aiocb: ide: %d, type=%d, wait=%" PRId64 ", (%ld, %zd)\n", 
+                    aiocb->is_from_ide, aiocb->aio_type, (aiocb->wait == 0) ? 0 : aiocb->wait - get_timestamp(),
+                    aiocb->aio_offset/512, aiocb->aio_nbytes/512);
+        }
 
         mutex_lock(&lock);
-        aiocb->ret = ret;
+        if (!aiocb_blocked)
+            aiocb->ret = ret;
         idle_threads++;
 #ifdef DEBUG_IDLE_THREADS
         mylog("I finished one aio, idle_thread=%d after (++)\n", idle_threads);
 #endif
         mutex_unlock(&lock);
 
-        if (kill(pid, aiocb->ev_signo)) die("kill failed");
+        if (!aiocb_blocked)
+            if (kill(pid, aiocb->ev_signo)) die("kill failed");
     }
 
     idle_threads--;
@@ -471,7 +500,7 @@ int qemu_paio_resubmit(struct qemu_paiocb *aiocb, int type)
     aiocb->ret = -EINPROGRESS;
     aiocb->active = 0;
     mutex_lock(&lock);
-    if (idle_threads == 0 && cur_threads < max_threads)
+    if (/*idle_threads == 0 && */cur_threads < max_threads)
           spawn_thread();
     TAILQ_INSERT_TAIL(&request_list, aiocb, node);
     mutex_unlock(&lock);
