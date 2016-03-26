@@ -284,7 +284,7 @@ bool blocked_by_gc(struct qemu_paiocb *aiocb)
     mylog("GC_WHOLE_ENDTIME: %" PRId64 "\n", GC_WHOLE_ENDTIME);
 #endif
     if ((aiocb->is_from_ide == 1) && (aiocb->aio_type == QEMU_PAIO_READ) && 
-            (get_timestamp() < GC_WHOLE_ENDTIME))
+            (get_timestamp() < aiocb->wait))
         return true;
 
     return false;
@@ -378,11 +378,7 @@ static void *aio_thread(void *unused)
         switch (aiocb->aio_type) {
             case QEMU_PAIO_READ:
             case QEMU_PAIO_WRITE:
-                if (aiocb->is_blocked) {
-                    ret = -EIO;
-                } else {
-                    ret = handle_aiocb_rw(aiocb);
-                }
+                ret = handle_aiocb_rw(aiocb);
                 break;
             case QEMU_PAIO_IOCTL:
                 ret = handle_aiocb_ioctl(aiocb);
@@ -443,6 +439,13 @@ static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
 {
     aiocb->aio_type = type;
 
+    /* Coperd: GC only blocks read requests */
+    if (type == QEMU_PAIO_READ) {
+        aiocb->wait = GC_WHOLE_ENDTIME;
+    } else {
+        aiocb->wait = 0;
+    }
+
     /* Coperd: hardcoded timestamp */
     /* Coperd: wait is not needed anymore, since qemu overhead is large enough
      * for Read/Write */
@@ -477,11 +480,6 @@ static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
     cond_signal(&cond);
 
     return 0;
-}
-
-int qemu_paio_block_read(struct qemu_paiocb *aiocb, int type)
-{
-
 }
 
 int qemu_paio_resubmit(struct qemu_paiocb *aiocb, int type)
