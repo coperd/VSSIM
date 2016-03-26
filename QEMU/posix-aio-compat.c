@@ -318,7 +318,6 @@ static void *aio_thread(void *unused)
     if (sigfillset(&set)) die("sigfillset");
     if (sigprocmask(SIG_BLOCK, &set, NULL)) die("sigprocmask");
 
-
     while (1) {
         struct qemu_paiocb *aiocb;
         size_t ret = 0;
@@ -440,26 +439,11 @@ static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
     aiocb->aio_type = type;
 
     /* Coperd: GC only blocks read requests */
-    if (type == QEMU_PAIO_READ) {
+    if ((aiocb->is_from_ide == 1) && (type == QEMU_PAIO_READ)) {
         aiocb->wait = GC_WHOLE_ENDTIME;
-    } else {
-        aiocb->wait = 0;
-    }
-
-    /* Coperd: hardcoded timestamp */
-    /* Coperd: wait is not needed anymore, since qemu overhead is large enough
-     * for Read/Write */
-    /*if (type == QEMU_PAIO_READ && aiocb->is_from_ide == 1) {
-        aiocb->wait = get_timestamp() + 240;
-    } else if (type == QEMU_PAIO_WRITE && aiocb->is_from_ide == 1) {
-        aiocb->wait = get_timestamp() + 940;
-    }*/
-    aiocb->ret = -EINPROGRESS;
-    aiocb->active = 0;
-    mutex_lock(&lock);
-    if (idle_threads == 0 && cur_threads < max_threads) {
-        spawn_thread();
-    }
+        if (get_timestamp() < aiocb->wait)
+            aiocb->is_blocked = 1;
+    } 
 
 #if 0
     if (aiocb->is_from_ide == 1) {
@@ -467,14 +451,13 @@ static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
     }
 #endif
 
-    /* Coperd: if I/O is blocked by GC, return EIO directly */
-    if (blocked_by_gc(aiocb)) {
-        //ret_eio(aiocb, pid);
-        aiocb->is_blocked = 1;
-        //TAILQ_INSERT_TAIL(&blocking_list, aiocb, node);
-    } else {
-        aiocb->is_blocked = 0;
+    aiocb->ret = -EINPROGRESS;
+    aiocb->active = 0;
+    mutex_lock(&lock);
+    if (idle_threads == 0 && cur_threads < max_threads) {
+        spawn_thread();
     }
+
     TAILQ_INSERT_TAIL(&request_list, aiocb, node);
     mutex_unlock(&lock);
     cond_signal(&cond);
