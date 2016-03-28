@@ -31,12 +31,12 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
                 break;
             } else {
                 GC_WHOLE_ENDTIME += 1e5; // 100ms
+                ssd->gc_cnt++;
+#ifdef DEBUG_GC
+                printf("%s GC[%d]\n", get_ssd_name(s), ssd->gc_cnt);
+#endif
             }
 
-            ssd->gc_cnt++;
-#ifdef DEBUG_GC
-            printf("%s: garbage collection .. [%d]\n", get_ssd_name(s), ssd->gc_cnt);
-#endif
 
         }
     }

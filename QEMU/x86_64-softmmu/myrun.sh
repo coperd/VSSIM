@@ -8,6 +8,7 @@ RDSKDIR=/mnt/tmpfs
 
 #VSSIMQEMU=$HOME/git/VSSIM/QEMU/x86_64-softmmu/qemu-system-x86_64.noebusy
 VSSIMQEMU=$HOME/git/VSSIM/QEMU/x86_64-softmmu/qemu-system-x86_64
+#VSSIMQEMU="./mVSSIM"
 VSSIMQEMUIMG=$HOME/git/VSSIM/QEMU/qemu-img
 
 LDSK=$IMAGEDIR/u14s_old.raw # virtual disk for guest OS, reside in host local FS
