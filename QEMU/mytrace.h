@@ -15,7 +15,6 @@
 
 extern pthread_mutex_t gc_lock;
 extern int GC_is_ON;
-extern int64_t GC_WHOLE_ENDTIME;
 extern int NB_CHANNEL, NB_CHIP;
 
 int64_t get_timestamp(void);

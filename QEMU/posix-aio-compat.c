@@ -281,12 +281,9 @@ static size_t handle_aiocb_rw(struct qemu_paiocb *aiocb)
 
 bool blocked_by_gc(struct qemu_paiocb *aiocb)
 {
-#ifdef DEBUG_LATENCY
-    mylog("GC_WHOLE_ENDTIME: %" PRId64 "\n", GC_WHOLE_ENDTIME);
-#endif
     /* Coperd: GC only blocks Read requests from IDE */
     if (aiocb->is_from_ide == 1 && aiocb->aio_type == QEMU_PAIO_READ && 
-            get_timestamp() < GC_WHOLE_ENDTIME)
+            get_timestamp() < aiocb->wait)
         return true;
 
     return false;
@@ -381,7 +378,10 @@ static void *aio_thread(void *unused)
 
         switch (aiocb->aio_type) {
             case QEMU_PAIO_READ:
-                if (aiocb->is_blocked == 1) { 
+                if (blocked_by_gc(aiocb)) { 
+                    mylog("set EIO: (%ld, %zd), wait=%" PRId64 "\n", 
+                            aiocb->aio_offset/512, aiocb->aio_nbytes/512, 
+                            aiocb->wait - get_timestamp());
                     ret = -EIO;
                     break;
                 }
@@ -399,6 +399,9 @@ static void *aio_thread(void *unused)
 
         mutex_lock(&lock);
         aiocb->ret = ret;
+        if (aiocb->ret == -EIO) {
+            mylog("ret EIO: (%ld, %zd)\n", aiocb->aio_offset/512, aiocb->aio_nbytes/512);
+        }
         idle_threads++;
 #ifdef DEBUG_IDLE_THREADS
         mylog("I finished one aio, idle_thread=%d after (++)\n", idle_threads);
@@ -447,17 +450,16 @@ int qemu_paio_init(struct qemu_paioinit *aioinit)
 static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
 {
     aiocb->aio_type = type;
-    aiocb->is_blocked = 0; /* Coperd: by default, not blocked */
-    aiocb->ret = -EINPROGRESS;
-    aiocb->active = 0;
-    mutex_lock(&lock);
-    if (idle_threads == 0 && cur_threads < max_threads) {
-        spawn_thread();
-    }
-
     /* Coperd: if I/O is blocked by GC, set is_blocked to 1 */
     if (blocked_by_gc(aiocb)) {
         aiocb->is_blocked = 1;
+    }
+    aiocb->ret = -EINPROGRESS;
+    aiocb->active = 0;
+    mutex_lock(&lock);
+
+    if (idle_threads == 0 && cur_threads < max_threads) {
+        spawn_thread();
     }
 
     TAILQ_INSERT_TAIL(&request_list, aiocb, node);
@@ -466,7 +468,6 @@ static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
 
     return 0;
 }
-
 
 int qemu_paio_resubmit(struct qemu_paiocb *aiocb, int type)
 {

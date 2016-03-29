@@ -74,8 +74,6 @@
 
 #include "../mytrace.h"
 
-//extern int64_t GC_WHOLE_ENDTIME;
-
 //#define DEBUG_FLOPPY
 //#define DEBUG_LATENCY
 
@@ -135,12 +133,14 @@ static int64_t raw_getlength(BlockDriverState *bs);
 static int cdrom_reopen(BlockDriverState *bs);
 #endif
 
+/* Coperd: open raw image file */
 static int raw_open_common(BlockDriverState *bs, const char *filename,
                            int bdrv_flags, int open_flags)
 {
     BDRVRawState *s = bs->opaque;
     int fd, ret;
 
+    /* Coperd: init AIO handler for this raw image "device" */
     posix_aio_init();
 
     s->lseek_err_cnt = 0;
@@ -685,6 +685,8 @@ static RawAIOCB *raw_aio_setup(BlockDriverState *bs, int64_t sector_num,
 
     /* Coperd: mark whether this qemu_paio coms from IDE */
     acb->aiocb.is_from_ide = bs->is_from_ide;
+    acb->aiocb.is_blocked = 0;
+    acb->aiocb.wait = bs->gc_whole_endtime;
 #ifdef DEBUG_LATENCY
     if (bs->is_from_ide == 1)
         mylog("raw aio, sector_num=%" PRId64 " n=%d\n", sector_num, nb_sectors);

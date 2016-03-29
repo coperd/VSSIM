@@ -10,6 +10,12 @@ RDSKDIR=/mnt/tmpfs
 VSSIMQEMU=$HOME/git/VSSIM/QEMU/x86_64-softmmu/qemu-system-x86_64
 VSSIMQEMUIMG=$HOME/git/VSSIM/QEMU/qemu-img
 
+if [[ "X""$1" == "X" ]]; then
+    QEMU=$VSSIMQEMU
+else
+    QEMU=$1
+fi
+
 LDSK=$IMAGEDIR/u14s_old.raw # virtual disk for guest OS, reside in host local FS
 #LDSK=$IMAGEDIR/ssd_hda.img # virtual disk for guest OS, reside in host local FS
 
@@ -46,7 +52,7 @@ fi
     #-drive file=$VSSD3,if=ide \
     #-drive file=$VSSD4,if=ide \
 
-$VSSIMQEMU \
+$QEMU \
     -name "VSSIM" \
     -smp 2 \
     -m 2048 \

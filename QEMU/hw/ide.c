@@ -32,7 +32,7 @@
 int trim_cnt = 0;
 #endif
 
-//#define DEBUG_LATENCY
+#define DEBUG_LATENCY
 
 /* debug IDE devices */
 //#define DEBUG_IDE
@@ -811,24 +811,29 @@ static void ide_sector_read(IDEState *s)
     n = s->nsector; /* Coperd: number of sectors needs to be read */
     if (n == 0) {
         /* no more sector to read from disk */
-#ifdef DEBUG_IDE
-        printf("[[%s]] s->nsector == 0, no more sectors to read\n", __func__);
+#ifdef DEBUG_LATENCY
+        mylog("%s pio read complete (%" PRId64 ", %d)\n", get_ssd_name(s), 
+                sector_num, n);
 #endif
         ide_transfer_stop(s);
     } else {
         if (n > s->req_nb_sectors) 
             n = s->req_nb_sectors;
 
-#ifdef SSD_EMULATION
 #ifdef DEBUG_LATENCY
-         mylog("[%s] pio_read sector_num=%" PRId64 " n=%d\n", get_ssd_name(s), 
-                 sector_num, n);
+        mylog("%s pio read (%" PRId64 ", %d)\n", get_ssd_name(s), sector_num, n);
 #endif
-         SSD_READ(s, sector_num, n);
+
+#ifdef SSD_EMULATION
+        SSD_READ(s, sector_num, n);
 #endif 
 
         ret = bdrv_read(s->bs, sector_num, s->io_buffer, n); 
         if (ret != 0) {
+#ifdef DEBUG_LATENCY
+            mylog("%s pio read error (%" PRId64 ", %d)\n", get_ssd_name(s), 
+                    sector_num, n);
+#endif
             ide_rw_error(s);
             return;
         }
@@ -973,14 +978,19 @@ static void ide_read_dma_cb(void *opaque, int ret)
     int n;
     int64_t sector_num;
 
+    n = s->io_buffer_size >> 9; 
+    sector_num = ide_get_sector(s); 
+
     if (ret < 0) {
+#ifdef DEBUG_LATENCY
+        mylog("%s dma read error (%" PRId64 ", %d)\n", get_ssd_name(s), 
+                sector_num, n);
+#endif
         dma_buf_commit(s, 1); 
         ide_dma_error(s);
         return;
     }
 
-    n = s->io_buffer_size >> 9; 
-    sector_num = ide_get_sector(s); 
 #ifdef DEBUG_LATENCY
     int sl = n;
     int64_t sn = sector_num;
@@ -995,7 +1005,8 @@ static void ide_read_dma_cb(void *opaque, int ret)
     /* end of transfer ? */
     if (s->nsector == 0) { 
 #ifdef DEBUG_LATENCY
-        mylog("dma_completion sector_num=%" PRId64 " n=%d\n", sn, sl);
+        mylog("%s dma read complete (%" PRId64 ", %d)\n", get_ssd_name(s), 
+                sn, sl);
 #endif
         s->status = READY_STAT | SEEK_STAT;
         ide_set_irq(s); 
@@ -1018,11 +1029,11 @@ eot:
     printf("aio_read: sector_num=%" PRId64 " n=%d\n", sector_num, n);
 #endif
 
-#ifdef SSD_EMULATION
 #ifdef DEBUG_LATENCY
-    mylog("[%s] dma_read sector_num=%" PRId64 " n=%d\n", get_ssd_name(s), 
-            sector_num, n);
+    mylog("%s dma read (%" PRId64 ", %d)\n", get_ssd_name(s), sector_num, n);
 #endif
+
+#ifdef SSD_EMULATION
     SSD_READ(s, sector_num, n);
 #endif
 
@@ -1052,25 +1063,35 @@ static void ide_sector_write(IDEState *s)
 
     s->status = READY_STAT | SEEK_STAT;
     sector_num = ide_get_sector(s);
-#if defined(DEBUG_IDE)
-    printf("[%s] write sector=%" PRId64 "\n", __FUNCTION__, sector_num);
-#endif
     n = s->nsector;
     if (n > s->req_nb_sectors)
         n = s->req_nb_sectors;
-    ret = bdrv_write(s->bs, sector_num, s->io_buffer, n);
 
-    if (ret != 0) {
-        if (ide_handle_write_error(s, -ret, BM_STATUS_PIO_RETRY))
-            return;
-    }
+#ifdef DEBUG_LATENCY
+    mylog("%s pio write (%" PRId64 ", %d)\n", get_ssd_name(s), sector_num, n);
+#endif
 
 #ifdef SSD_EMULATION
 		SSD_WRITE(s, sector_num, n); 
 #endif
 
+    ret = bdrv_write(s->bs, sector_num, s->io_buffer, n);
+
+    if (ret != 0) {
+#ifdef DEBUG_LATENCY
+        mylog("%s pio write error (%" PRId64 ", %d)\n", get_ssd_name(s), 
+                sector_num, n);
+#endif
+        if (ide_handle_write_error(s, -ret, BM_STATUS_PIO_RETRY))
+            return;
+    }
+
     s->nsector -= n;
     if (s->nsector == 0) {
+#ifdef DEBUG_LATENCY
+        mylog("%s pio write complete (%" PRId64 ", %d)\n", get_ssd_name(s), 
+                sector_num, n);
+#endif
         /* no more sectors to write */
         ide_transfer_stop(s);
     } else {
@@ -1134,13 +1155,18 @@ static void ide_write_dma_cb(void *opaque, int ret)
     int n;
     int64_t sector_num;
 
+    n = s->io_buffer_size >> 9;
+    sector_num = ide_get_sector(s);
+
     if (ret < 0) {
+#ifdef DEBUG_LATENCY
+        mylog("%s dma write error (%" PRId64 ", %d)\n", get_ssd_name(s), 
+                sector_num, n);
+#endif
         if (ide_handle_write_error(s, -ret,  BM_STATUS_DMA_RETRY))
             return;
     }
 
-    n = s->io_buffer_size >> 9;
-    sector_num = ide_get_sector(s);
     if (n > 0) {
         dma_buf_commit(s, 0);
         sector_num += n;
@@ -1150,6 +1176,10 @@ static void ide_write_dma_cb(void *opaque, int ret)
 
     /* end of transfer ? */
     if (s->nsector == 0) {
+#ifdef DEBUG_LATENCY
+        mylog("%s dma write complete (%" PRId64 ", %d)\n", get_ssd_name(s), 
+                sector_num, n);
+#endif
         s->status = READY_STAT | SEEK_STAT;
         ide_set_irq(s);
     eot:
@@ -1168,6 +1198,10 @@ static void ide_write_dma_cb(void *opaque, int ret)
         goto eot;
 #ifdef DEBUG_AIO
     printf("aio_write: sector_num=%" PRId64 " n=%d\n", sector_num, n);
+#endif
+
+#ifdef DEBUG_LATENCY
+    mylog("%s dma write (%" PRId64 ", %d)\n", get_ssd_name(s), sector_num, n);
 #endif
 
 #ifdef SSD_EMULATION
@@ -2394,7 +2428,6 @@ static void ide_ioport_write(void *opaque, uint32_t addr, uint32_t val)
                     /* Coperd: DMA read */
                     if (!s->bs) 
                         goto abort_cmd;
-                    /* Coperd: there is one drive connected to this port, maybe harddisk or cdrom */
                     ide_cmd_lba48_transform(s, lba48);
                     ide_sector_read_dma(s);
                     break;
@@ -2888,6 +2921,7 @@ static void ide_init2(IDEState *ide_state,
         if (s->bs) {  
             /* Coperd: mark this device as IDE */
             s->bs->is_from_ide = 1;
+            s->bs->gc_whole_endtime = 0;
 
             bdrv_get_geometry(s->bs, &nb_sectors);
             bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);

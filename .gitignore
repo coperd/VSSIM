@@ -4,6 +4,7 @@
 *.dat
 *.bin
 *.log
+*.trace
 
 qemu-system-x86_64
 qemu-nbd

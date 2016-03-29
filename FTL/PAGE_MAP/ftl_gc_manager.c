@@ -24,19 +24,24 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
 #ifdef GC_TRIGGER_OVERALL
     if (ssd->total_empty_block_nb < ssdconf->gc_threshold_block_nb) {
     //if (ssd->total_empty_block_nb <= ssdconf->flash_nb * ssdconf->planes_per_flash) {
-    GC_WHOLE_ENDTIME = get_timestamp();
+    s->bs->gc_whole_endtime = get_timestamp();
         for (i = 0; i < ssdconf->gc_victim_nb; i++) {
             ret = GARBAGE_COLLECTION(s);
             if (ret == FAIL) {
+                ssd->gc_fail_cnt++;
+#ifdef DEBUG_GC
+                mylog("%s: [[GC failed]] [%d]\n", get_ssd_name(s), ssd->gc_fail_cnt);
+#endif
                 break;
             } else {
-                GC_WHOLE_ENDTIME += 1e5; // 100ms
+                s->bs->gc_whole_endtime += 1e5; // 100ms
+                ssd->gc_cnt++;
+#ifdef DEBUG_GC
+                mylog("%s: GC[%d], blocking to %" PRId64 "\n", get_ssd_name(s), 
+                        ssd->gc_cnt, s->bs->gc_whole_endtime);
+#endif
             }
 
-            ssd->gc_cnt++;
-#ifdef DEBUG_GC
-            printf("%s: garbage collection .. [%d]\n", get_ssd_name(s), ssd->gc_cnt);
-#endif
 
         }
     }

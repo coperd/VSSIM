@@ -4188,11 +4188,13 @@ void main_loop_wait(int timeout)
 
         for(ioh = first_io_handler; ioh != NULL; ioh = ioh->next) {
             if (!ioh->deleted && ioh->fd_read && FD_ISSET(ioh->fd, &rfds)) {
+                /* Coperd: dispatch read events */
                 ioh->fd_read(ioh->opaque);
                 if (!(ioh->fd_read_poll && ioh->fd_read_poll(ioh->opaque)))
                     FD_CLR(ioh->fd, &rfds);
             }
             if (!ioh->deleted && ioh->fd_write && FD_ISSET(ioh->fd, &wfds)) {
+                /* Coperd: dispatch write events */
                 ioh->fd_write(ioh->opaque);
             }
         }
