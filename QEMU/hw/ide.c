@@ -2927,6 +2927,7 @@ static void ide_init2(IDEState *ide_state,
         if (s->bs) {  
             /* Coperd: mark this device as IDE */
             s->bs->is_from_ide = 1;
+            s->bs->gc_whole_endtime = 0;
 
             bdrv_get_geometry(s->bs, &nb_sectors);
             bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);

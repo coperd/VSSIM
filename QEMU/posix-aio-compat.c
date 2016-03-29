@@ -280,9 +280,6 @@ static size_t handle_aiocb_rw(struct qemu_paiocb *aiocb)
 
 bool blocked_by_gc(struct qemu_paiocb *aiocb)
 {
-#ifdef DEBUG_LATENCY
-    mylog("GC_WHOLE_ENDTIME: %" PRId64 "\n", GC_WHOLE_ENDTIME);
-#endif
     if ((aiocb->is_from_ide == 1) && (aiocb->aio_type == QEMU_PAIO_READ) && 
             (get_timestamp() < aiocb->wait))
         return true;
@@ -468,13 +465,6 @@ int qemu_paio_init(struct qemu_paioinit *aioinit)
 static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
 {
     aiocb->aio_type = type;
-
-    /* Coperd: GC only blocks read requests */
-    if ((aiocb->is_from_ide == 1) && (type == QEMU_PAIO_READ)) {
-        aiocb->wait = GC_WHOLE_ENDTIME;
-        if (get_timestamp() < aiocb->wait)
-            aiocb->is_blocked = 1;
-    } 
 
 #if 0
     if (aiocb->is_from_ide == 1) {

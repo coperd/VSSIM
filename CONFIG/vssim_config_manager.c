@@ -241,6 +241,7 @@ void INIT_SSD_CONFIG(IDEState *s)
 {
     SSDState *ssd = &(s->ssd);
     /* SSDState structure initlization */
+    ssd->gc_fail_cnt = 0;
     ssd->gc_cnt = 0;
     ssd->read_cnt = 0;
     ssd->write_cnt = 0;

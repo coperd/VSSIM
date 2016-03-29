@@ -9,7 +9,6 @@
 pthread_mutex_t gc_lock = PTHREAD_MUTEX_INITIALIZER;
 
 int GC_is_ON = 0;
-int64_t GC_WHOLE_ENDTIME = 0;
 
 int NB_CHANNEL, NB_CHIP;
 
