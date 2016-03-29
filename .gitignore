@@ -11,5 +11,6 @@ qemu-nbd
 qemu-img
 qemu-io
 data/
+trace/
 benchmark/
 cscope*
