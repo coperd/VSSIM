@@ -638,6 +638,7 @@ static void raw_aio_remove(RawAIOCB *acb)
     pacb = &posix_aio_state->first_aio;
     for(;;) {
         if (*pacb == NULL) {
+            mylog("deleting: (%" PRId64 ", %zu)\n", acb->aiocb.aio_offset/512, acb->aiocb.aio_nbytes/512);
             fprintf(stderr, "raw_aio_remove: aio request not found!\n");
             break;
         } else if (*pacb == acb) {
