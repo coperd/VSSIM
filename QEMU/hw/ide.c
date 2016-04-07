@@ -891,7 +891,7 @@ static void dma_buf_commit(IDEState *s, int is_write)
     qemu_sglist_destroy(&s->sg);
 }
 
-static void ide_dma_error(IDEState *s)
+void ide_dma_error(IDEState *s)
 {
     ide_transfer_stop(s);
     s->error = ABRT_ERR;
@@ -981,6 +981,15 @@ static void ide_read_dma_cb(void *opaque, int ret)
     n = s->io_buffer_size >> 9; 
     sector_num = ide_get_sector(s); 
 
+    if (get_timestamp() < s->bs->gc_whole_endtime) {
+#ifdef DEBUG_LATENCY
+        mylog("%s read error (%" PRId64 ", %d), blocking to %"PRId64"\n", 
+                get_ssd_name(s), sector_num, n, s->bs->gc_whole_endtime);
+#endif
+        ide_dma_error(s);
+        return;
+    }
+
     if (ret < 0) {
 #ifdef DEBUG_LATENCY
         mylog("%s dma read error (%" PRId64 ", %d)\n", get_ssd_name(s), 
@@ -1047,6 +1056,17 @@ static void ide_sector_read_dma(IDEState *s)
     s->io_buffer_index = 0;
     s->io_buffer_size = 0;
     s->is_read = 1;
+
+#if 0
+    if (get_timestamp() < s->bs->gc_whole_endtime) {
+        mylog("%s: READ (%"PRId64", %d) blocking to %"PRId64", returning ..\n", 
+                get_ssd_name(s), ide_get_sector(s), 
+                s->nsector, s->bs->gc_whole_endtime);
+        ide_dma_error(s);
+        return;
+    }
+#endif
+
     ide_dma_start(s, ide_read_dma_cb);
 }
 

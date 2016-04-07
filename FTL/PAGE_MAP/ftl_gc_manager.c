@@ -23,8 +23,8 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
 
 #ifdef GC_TRIGGER_OVERALL
     if (ssd->total_empty_block_nb < ssdconf->gc_threshold_block_nb) {
-    //if (ssd->total_empty_block_nb <= ssdconf->flash_nb * ssdconf->planes_per_flash) {
-    s->bs->gc_whole_endtime = get_timestamp();
+        //if (ssd->total_empty_block_nb <= ssdconf->flash_nb * ssdconf->planes_per_flash) {
+        s->bs->gc_whole_endtime = get_timestamp();
         for (i = 0; i < ssdconf->gc_victim_nb; i++) {
             ret = GARBAGE_COLLECTION(s);
             if (ret == FAIL) {
@@ -65,7 +65,7 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
         }
     }
 #endif
-}
+    }
 
 int GARBAGE_COLLECTION(IDEState *s)
 {
