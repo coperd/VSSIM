@@ -10,11 +10,6 @@ RDSKDIR=/mnt/tmpfs
 VSSIMQEMU=$HOME/git/VSSIM/QEMU/x86_64-softmmu/qemu-system-x86_64
 VSSIMQEMUIMG=$HOME/git/VSSIM/QEMU/qemu-img
 
-if [[ "X""$1" == "X" ]]; then
-    QEMU=$VSSIMQEMU
-else
-    QEMU=$1
-fi
 
 LDSK=$IMAGEDIR/u14s_old.raw # virtual disk for guest OS, reside in host local FS
 #LDSK=$IMAGEDIR/ssd_hda.img # virtual disk for guest OS, reside in host local FS
@@ -31,6 +26,12 @@ if [[ $ISRDSK == "" ]]; then
     sudo mount -t tmpfs -o size=2G tmpfs $RDSKDIR
 fi
 
+if [[ "X""$1" == "X" ]]; then
+    QEMU=$VSSIMQEMU
+else
+    QEMU=$1
+    rm -rf /mnt/tmpfs/*
+fi
 # create virtual disks we need if they doesn't exist
 [[ ! -e $VSSD1 ]] && $VSSIMQEMUIMG create -f raw $VSSD1 512M
 [[ ! -e $VSSD2 ]] && $VSSIMQEMUIMG create -f raw $VSSD2 512M
