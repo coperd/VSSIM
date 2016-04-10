@@ -629,6 +629,7 @@ typedef struct SSDState
 
 /* NOTE: IDEState represents in fact one drive */
 typedef struct IDEState {
+    int need_warmup;
 
 #ifdef DEBUG_ERR
     int nerr_dma;

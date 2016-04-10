@@ -63,7 +63,7 @@ $QEMU \
     -drive file=$VSSD3,if=ide \
     -drive file=$VSSD4,if=ide \
     -enable-kvm \
+    -nographic \
     -net nic,model=virtio \
     -net user,hostfwd=tcp::8080-:22 \
-    -nographic \
     -usbdevice tablet
