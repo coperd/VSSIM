@@ -34,12 +34,6 @@ int trim_cnt = 0;
 
 #define DEBUG_LATENCY
 
-#define SSD_WARMUP
-
-#ifdef SSD_WARMUP
-int warmup_cnt = 0;
-#endif
-
 /* debug IDE devices */
 //#define DEBUG_IDE
 //#define DEBUG_IDE_ATAPI
@@ -987,14 +981,6 @@ static void ide_read_dma_cb(void *opaque, int ret)
     n = s->io_buffer_size >> 9; 
     sector_num = ide_get_sector(s); 
 
-    if ((get_timestamp() < s->bs->gc_whole_endtime) && n > 0) {
-#ifdef DEBUG_LATENCY
-        mylog("%s read error (%" PRId64 ", %d), blocking to %"PRId64"\n", 
-                get_ssd_name(s), sector_num, n, s->bs->gc_whole_endtime);
-#endif
-        ide_dma_error(s);
-        return;
-    }
 
     if (ret < 0) {
 #ifdef DEBUG_LATENCY
@@ -1062,6 +1048,18 @@ static void ide_sector_read_dma(IDEState *s)
     s->io_buffer_index = 0;
     s->io_buffer_size = 0;
     s->is_read = 1;
+
+    int64_t sector_num = ide_get_sector(s);
+    int n = s->nsector;
+
+    if ((get_timestamp() < s->bs->gc_whole_endtime) && n > 0) {
+#ifdef DEBUG_LATENCY
+        mylog("%s read error (%" PRId64 ", %d), blocking to %"PRId64"\n", 
+                get_ssd_name(s), sector_num, n, s->bs->gc_whole_endtime);
+#endif
+        ide_dma_error(s);
+        return;
+    }
 
 #if 0
     if (get_timestamp() < s->bs->gc_whole_endtime) {
@@ -2948,7 +2946,6 @@ static void ide_init2(IDEState *ide_state,
             /* Coperd: mark this device as IDE */
             s->bs->is_from_ide = 1;
             s->bs->gc_whole_endtime = 0;
-            s->need_warmup = 1;
 
             bdrv_get_geometry(s->bs, &nb_sectors);
             bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);
@@ -2982,28 +2979,25 @@ static void ide_init2(IDEState *ide_state,
         if (s->bs && s->bs->drv && !s->is_cdrom) { 
             printf("INIT SSD[%d] from [%s]\n", ide_idx, s->bs->filename);
             SSD_INIT(s);
-#ifdef SSD_WARMUP
-            if (ide_idx == 0) {
+
+            int nwarmup = s->ssd.nwarmup;
+            if (nwarmup > 0) {
                 mylog("=======[%s] SSD WARMUP BEGINS=======\n", get_ssd_name(s));
                 int ii, jj;
-                if (s->need_warmup == 1) {
-                    for (ii = 0; ii < 10; ii++) {
-                        int tmp_sector_num = 0;
-                        for (jj = 0; jj < 7600; jj++) {
-                            SSD_WRITE(s, tmp_sector_num, 8);
-                            tmp_sector_num += 8;
-                        }
+                for (ii = 0; ii < 10; ii++) {
+                    int tmp_sector_num = 0;
+                    for (jj = 0; jj < nwarmup/10; jj++) {
+                        SSD_WRITE(s, tmp_sector_num, 8);
+                        tmp_sector_num += 8;
                     }
-                    s->need_warmup = 0;
                 }
                 mylog("========[%s] SSD WARMUP ENDS========\n", get_ssd_name(s));
             }
 #endif
-        /* Coperd: BlockDriverState: *BlockDriver -> if there is medium */
-        vm_ide[ide_idx++] = s;
+            /* Coperd: BlockDriverState: *BlockDriver -> if there is medium */
+            vm_ide[ide_idx++] = s;
         } else {
         }
-#endif
     }
 
 }

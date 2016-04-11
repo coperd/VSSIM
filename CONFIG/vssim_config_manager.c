@@ -9,6 +9,7 @@
 
 #include "vssim_config_manager.h"
 #include "ssd_util.h"
+#include "mytrace.h"
 
 extern int NB_CHANNEL, NB_CHIP;
 
@@ -70,6 +71,8 @@ void INIT_VSSIM_CONFIG(IDEState *s)
                 fscanf(pfData, "%lf", &ssdconf->gc_threshold);
             } else if (strcmp(szCommand, "GC_THRESHOLD_HARD") == 0) {
                 fscanf(pfData, "%lf", &ssdconf->gc_threshold_hard);
+            } else if (strcmp(szCommand, "WARMUP") == 0) {
+                fscanf(pfData, "%d", &ssd->nwarmup);
             }
 
 #if defined FTL_MAP_CACHE || defined Polymorphic_FTL
@@ -245,6 +248,7 @@ void INIT_SSD_CONFIG(IDEState *s)
     ssd->gc_fail_cnt = 0;
     ssd->read_cnt = 0;
     ssd->write_cnt = 0;
+    ssd->nwarmup = 0;
 
     INIT_VSSIM_CONFIG(s);
 }
