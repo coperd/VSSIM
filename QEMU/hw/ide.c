@@ -34,6 +34,12 @@ int trim_cnt = 0;
 
 #define DEBUG_LATENCY
 
+#define SSD_WARMUP
+
+#ifdef SSD_WARMUP
+int warmup_cnt = 0;
+#endif
+
 /* debug IDE devices */
 //#define DEBUG_IDE
 //#define DEBUG_IDE_ATAPI
@@ -981,7 +987,7 @@ static void ide_read_dma_cb(void *opaque, int ret)
     n = s->io_buffer_size >> 9; 
     sector_num = ide_get_sector(s); 
 
-    if (get_timestamp() < s->bs->gc_whole_endtime) {
+    if ((get_timestamp() < s->bs->gc_whole_endtime) && n > 0) {
 #ifdef DEBUG_LATENCY
         mylog("%s read error (%" PRId64 ", %d), blocking to %"PRId64"\n", 
                 get_ssd_name(s), sector_num, n, s->bs->gc_whole_endtime);
@@ -1202,7 +1208,7 @@ static void ide_write_dma_cb(void *opaque, int ret)
 #endif
         s->status = READY_STAT | SEEK_STAT;
         ide_set_irq(s);
-    eot:
+eot:
         bm->status &= ~BM_STATUS_DMAING;
         bm->status |= BM_STATUS_INT;
         bm->dma_cb = NULL;
@@ -1225,7 +1231,7 @@ static void ide_write_dma_cb(void *opaque, int ret)
 #endif
 
 #ifdef SSD_EMULATION
-		SSD_WRITE(s, sector_num, n); 
+    SSD_WRITE(s, sector_num, n); 
 #endif
 
     bm->aiocb = dma_bdrv_write(s->bs, &s->sg, sector_num, ide_write_dma_cb, bm);
@@ -2942,6 +2948,7 @@ static void ide_init2(IDEState *ide_state,
             /* Coperd: mark this device as IDE */
             s->bs->is_from_ide = 1;
             s->bs->gc_whole_endtime = 0;
+            s->need_warmup = 1;
 
             bdrv_get_geometry(s->bs, &nb_sectors);
             bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);
@@ -2968,12 +2975,32 @@ static void ide_init2(IDEState *ide_state,
         ide_reset(s);
 
 #ifdef SSD_EMULATION
-        /* Coperd: BlockDriverState: *BlockDriver -> if there is medium */
-        vm_ide[ide_idx++] = s;
-
-        if (s->bs && s->bs->drv && !s->is_cdrom) { /* Coperd: simplily, we use this to check if there is harddisk attached to this port */
+        /* 
+         * Coperd: simplily, we use this to check if there is harddisk attached 
+         * to this port 
+         */
+        if (s->bs && s->bs->drv && !s->is_cdrom) { 
             printf("INIT SSD[%d] from [%s]\n", ide_idx, s->bs->filename);
             SSD_INIT(s);
+#ifdef SSD_WARMUP
+            if (ide_idx == 0) {
+                mylog("=======[%s] SSD WARMUP BEGINS=======\n", get_ssd_name(s));
+                int ii, jj;
+                if (s->need_warmup == 1) {
+                    for (ii = 0; ii < 10; ii++) {
+                        int tmp_sector_num = 0;
+                        for (jj = 0; jj < 7600; jj++) {
+                            SSD_WRITE(s, tmp_sector_num, 8);
+                            tmp_sector_num += 8;
+                        }
+                    }
+                    s->need_warmup = 0;
+                }
+                mylog("========[%s] SSD WARMUP ENDS========\n", get_ssd_name(s));
+            }
+#endif
+        /* Coperd: BlockDriverState: *BlockDriver -> if there is medium */
+        vm_ide[ide_idx++] = s;
         } else {
         }
 #endif
