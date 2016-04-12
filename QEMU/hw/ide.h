@@ -657,6 +657,8 @@ typedef struct IDEState {
     uint8_t sector;   /* Coperd: sector count register, serve as one parameter of command */
     uint8_t lcyl;     /* Coperd: LBA Low register, one parameter of command */
     uint8_t hcyl;     /* Coperd: LBA High register, one parameter of command */
+
+    int hob;
     /* other part of tf for lba48 support */
     uint8_t hob_feature;
     uint8_t hob_nsector;
