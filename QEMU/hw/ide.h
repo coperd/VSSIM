@@ -516,6 +516,7 @@ typedef struct SSDState
     int gc_fail_cnt;
     int read_cnt;
     int write_cnt;
+    int nwarmup;
 
     //IDEState *s;
     char *name; 

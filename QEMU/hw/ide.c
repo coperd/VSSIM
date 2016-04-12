@@ -2960,6 +2960,20 @@ static void ide_init2(IDEState *ide_state,
         if (s->bs && s->bs->drv && !s->is_cdrom) { /* Coperd: simplily, we use this to check if there is harddisk attached to this port */
             printf("INIT SSD[%d] from [%s]\n", ide_idx, s->bs->filename);
             SSD_INIT(s);
+
+            int nwarmup = s->ssd.nwarmup;
+            if (nwarmup > 0) {
+                mylog("========[%s] SSD WARMUP BEGINS=====\n", get_ssd_name(s));
+                int ii, jj;
+                for (ii = 0; ii < 10; ii++) {
+                    int tmp_sector_num = 0;
+                    for (jj = 0; jj < nwarmup/10; jj++) {
+                        SSD_WRITE(s, tmp_sector_num, 8);
+                        tmp_sector_num += 8;
+                    }
+                }
+                mylog("=========[%s] SSD WARMUP ENDS======\n", get_ssd_name(s));
+            }
         } else {
         }
 #endif
