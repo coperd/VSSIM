@@ -2,8 +2,8 @@
 
 # VSSIM running script
 
-HOME=/home/huaicheng
-IMAGEDIR=$HOME/images
+
+IMAGEDIR=$HOME/VSSIM/IMAGES
 RDSKDIR=/mnt/tmpfs
 
 #VSSIMQEMU=$HOME/git/VSSIM/QEMU/x86_64-softmmu/qemu-system-x86_64.noebusy
@@ -11,13 +11,14 @@ VSSIMQEMU=./qemu-system-x86_64
 VSSIMQEMUIMG=../qemu-img
 
 
-LDSK=$IMAGEDIR/u14s_old.raw # virtual disk for guest OS, reside in host local FS
+LDSK=$IMAGEDIR/hda.raw # virtual disk for guest OS, reside in host local FS
 #LDSK=$IMAGEDIR/ssd_hda.img # virtual disk for guest OS, reside in host local FS
 
 VSSD1=$RDSKDIR/vssd1.raw   # virtual SSD disks (1,2) for building RAID1 in guest OS, reside in host ramdisk
 VSSD2=$RDSKDIR/vssd2.raw
-VSSD3=$RDSKDIR/vssd3.raw   # just for testing
+VSSD3=$RDSKDIR/vssd3.raw
 VSSD4=$RDSKDIR/vssd4.raw
+
 
 # check if tmpfs has been mounted, if not, mount it now
 ISRDSK=$(mount | grep -i "$RDSKDIR")
@@ -37,6 +38,8 @@ fi
 [[ ! -e $VSSD2 ]] && $VSSIMQEMUIMG create -f raw $VSSD2 512M
 [[ ! -e $VSSD3 ]] && $VSSIMQEMUIMG create -f raw $VSSD3 512M
 [[ ! -e $VSSD4 ]] && $VSSIMQEMUIMG create -f raw $VSSD4 512M
+
+
 
 # uncomment this part when you setup new environments
 #rm -rf $VSSD1 $VSSD2

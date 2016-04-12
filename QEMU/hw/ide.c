@@ -22,6 +22,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <time.h>
+#include <stdlib.h>
 #include "ide.h"
 #include "ssd.h"
 #include "ssd_util.h"
@@ -35,7 +37,7 @@ int trim_cnt = 0;
 #define DEBUG_LATENCY
 
 /* debug IDE devices */
-//#define DEBUG_IDE
+#define DEBUG_IDE
 //#define DEBUG_IDE_ATAPI
 //#define DEBUG_AIO
 #define DEBUG_DSM
@@ -53,14 +55,14 @@ int trim_cnt = 0;
 #define BUSY_STAT		0x80
 
 /* Bits for HD_ERROR */
-#define MARK_ERR		0x01	/* Bad address mark */
-#define TRK0_ERR		0x02	/* couldn't find track 0 */
-#define ABRT_ERR		0x04	/* Command aborted */
-#define MCR_ERR			0x08	/* media change request */
-#define ID_ERR			0x10	/* ID field not found */
-#define MC_ERR			0x20	/* media changed */
-#define ECC_ERR			0x40	/* Uncorrectable ECC error */
-#define BBD_ERR			0x80	/* pre-EIDE meaning:  block marked bad */
+#define MARK_ERR		0x01	/* Bad address mark 1<<0 */
+#define TRK0_ERR		0x02	/* couldn't find track 0 1<<1 */
+#define ABRT_ERR		0x04	/* Command aborted 1<<2*/
+#define MCR_ERR			0x08	/* media change request 1<<3*/
+#define ID_ERR			0x10	/* ID field not found 1<<4*/
+#define MC_ERR			0x20	/* media changed 1<<5*/
+#define ECC_ERR			0x40	/* Uncorrectable ECC error 1<<6*/
+#define BBD_ERR			0x80	/* pre-EIDE meaning:  block marked bad 1<<7*/
 #define ICRC_ERR		0x80	/* new meaning:  CRC error during transfer */
 
 /* Bits of HD_NSECTOR */
@@ -768,6 +770,11 @@ static int64_t ide_get_sector(IDEState *s)
     return sector_num;
 }
 
+static int ide_get_cus(IDEState *s)
+{
+    return (s->feature & 0x80) == 0? 0: 1;
+}
+
 static void ide_set_sector(IDEState *s, int64_t sector_num)
 {
     unsigned int cyl, r;
@@ -809,6 +816,26 @@ static void ide_sector_read(IDEState *s)
     s->error = 0; /* not needed by IDE spec, but needed by Windows */
     sector_num = ide_get_sector(s);
     n = s->nsector; /* Coperd: number of sectors needs to be read */
+
+#ifdef DEBUG_ERR
+    int j;
+#define MB (1024*1024)
+        for(j=0;j<4;j++)
+        {
+            if(s==vm_ide[j])
+                break;
+        }
+        if ((s == vm_ide[0] || s == vm_ide[1]) && sector_num >= 100*MB/512 && sector_num <= 200*MB/512) {
+            s->nerr_pio++;
+            printf("[%s, %d] ADDRESS 100~200 MB unreadable, ==[[PIO]]== reporting erroring\n", s->ssd.name, s->nerr_pio);
+            ide_rw_error(s);
+            return;
+        } else {
+            s->nsuc_pio++;
+            printf("**[[%d %d PIO]]** NORMAL READING ========\n", s->nsuc_pio, j);
+        }
+#endif
+
     if (n == 0) {
         /* no more sector to read from disk */
 #ifdef DEBUG_LATENCY
@@ -891,12 +918,34 @@ static void dma_buf_commit(IDEState *s, int is_write)
     qemu_sglist_destroy(&s->sg);
 }
 
-void ide_dma_error(IDEState *s)
+static void ide_dma_error_gc(IDEState *s)
+{
+    //ide_transfer_stop(s);
+    s->error = ABRT_ERR;
+    s->error |= MC_ERR;
+    s->status = READY_STAT | ERR_STAT;
+
+#define GC_MAXTIME  1e5   /* 100ms */
+    int64_t GC_TIME = s->bs->gc_whole_endtime - get_timestamp();
+    if (GC_TIME > GC_MAXTIME)
+        GC_TIME = GC_MAXTIME;
+    uint8_t gc_wait_bits = (uint8_t)(GC_TIME*1.0/GC_MAXTIME * 255);
+    s->hob_feature = gc_wait_bits;
+    printf("hob_feature 0x%x\n", s->hob_feature);
+    ide_set_irq(s);
+}
+
+static void ide_dma_error(IDEState *s)
 {
     ide_transfer_stop(s);
     s->error = ABRT_ERR;
     s->status = READY_STAT | ERR_STAT;
-    ide_set_irq(s); /* Coperd: call the general qemu irq function set, anyway, stuff is done by the corresponding irq handler registered for the qemu_irq type */
+    /* 
+     * Coperd: call the general qemu irq function set, anyway, 
+     * stuff is done by the corresponding irq handler registered 
+     * for the qemu_irq type 
+     */
+    ide_set_irq(s); 
 }
 
 static int ide_handle_write_error(IDEState *s, int error, int op)
@@ -978,6 +1027,30 @@ static void ide_read_dma_cb(void *opaque, int ret)
     int n;
     int64_t sector_num;
 
+#ifdef DEBUG_ERR
+    int set_cus;
+    int j;
+    sector_num = ide_get_sector(s); /* Coperd: transfer from sector sector_num (e.g. sector #8000) */
+    set_cus = ide_get_cus(s);
+#define MB (1024*1024)
+    for(j=0; j<4; j++)
+    {
+        if(s == vm_ide[j])
+            break;
+    }
+    printf("[%d] cet_cus? %d\n", j, set_cus);
+    if (set_cus == 0 /*&& (s == vm_ide[0] || s == vm_ide[1]) */&& ((sector_num >= 100*MB/512)) && (sector_num <= (200*MB/512))) {
+        s->nerr_dma++;
+        printf("[%d DMA] ADDRESS 100~200 MB unreadable, reporting erroring\n", j);
+        //dma_buf_commit(s, 1);
+        ide_dma_error_gc(s);
+        return;
+    } else {
+        s->nsuc_dma++;
+        printf("[%d DMA] NORMAL READING\n", j);
+    }
+#endif
+
     n = s->io_buffer_size >> 9; 
     sector_num = ide_get_sector(s); 
 
@@ -1052,12 +1125,13 @@ static void ide_sector_read_dma(IDEState *s)
     int64_t sector_num = ide_get_sector(s);
     int n = s->nsector;
 
-    if ((get_timestamp() < s->bs->gc_whole_endtime) && n > 0) {
+    if ((get_timestamp() < s->bs->gc_whole_endtime) && 
+            n > 0 && (ide_get_cus(s) == 0)) {
 #ifdef DEBUG_LATENCY
         mylog("%s read error (%" PRId64 ", %d), blocking to %"PRId64"\n", 
                 get_ssd_name(s), sector_num, n, s->bs->gc_whole_endtime);
 #endif
-        ide_dma_error(s);
+        ide_dma_error_gc(s);
         return;
     }
 
@@ -2218,11 +2292,15 @@ static void ide_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 
 
 #ifdef DEBUG_IDE
-    /*FILE *ide_ioport_wr_fp = fopen("./data/ide_ioport_write.trace", "a+");
+    FILE *ide_ioport_wr_fp = fopen("./data/ide_ioport_write.trace", "a+");
       if (NULL == ide_ioport_wr_fp) {
       }
-      fprintf(ide_ioport_wr_fp, "[%s] IDE: write addr=0x%10x val=0x%02x\n", __FUNCTION__, addr, val);
-      fclose(ide_ioport_wr_fp); */
+      fprintf(ide_ioport_wr_fp, 
+            "[%u] IDE: write ide_if=%p addr=0x%08x val=0x%02x\n", 
+            (unsigned)time(NULL), 
+            opaque, addr, val);
+      fclose(ide_ioport_wr_fp); 
+
 #endif
 
     addr &= 7;
@@ -2699,7 +2777,7 @@ static uint32_t ide_ioport_read(void *opaque, uint32_t addr1)
     addr = addr1 & 7;
     /* FIXME: HOB readback uses bit 7, but it's always set right now */
     //hob = s->select & (1 << 7);
-    hob = 0;
+    hob = s->hob;
     switch(addr) {
     case 0:
         ret = 0xff;
@@ -2744,6 +2822,13 @@ static uint32_t ide_ioport_read(void *opaque, uint32_t addr1)
             ret = s->hcyl;
 	else
 	    ret = s->hob_hcyl;
+
+        
+        if(s->error & MC_ERR)
+        {
+            s->hob = !s->hob;
+            //printf("hob changed: %d\n", s->hob);
+        }
         break;
     case 6:
         if (!ide_if[0].bs && !ide_if[1].bs)
@@ -2791,7 +2876,7 @@ static void ide_cmd_write(void *opaque, uint32_t addr, uint32_t val)
     int i;
 
 #ifdef DEBUG_IDE
-    printf("[%s] ide: write control addr=0x%x val=%02x\n", __FUNCTION__, addr, val);
+    //printf("[%s] ide: write control addr=0x%x val=%02x\n", __FUNCTION__, addr, val);
 #endif
     /* common for both drives */
     if (!(ide_if[0].cmd & IDE_CMD_RESET) &&
@@ -2909,6 +2994,7 @@ static void ide_reset(IDEState *s)
         s->mult_sectors = MAX_MULT_SECTORS;
     s->cur_drive = s;
     s->select = 0xa0;
+    s->hob = 0;
     s->status = READY_STAT | SEEK_STAT;
     ide_set_signature(s);
     /* init the transfer handler so that 0xffff is returned on data
@@ -2971,13 +3057,13 @@ static void ide_init2(IDEState *ide_state,
                 ide_sector_write_timer_cb, s);
         ide_reset(s);
 
-#ifdef SSD_EMULATION
-        /* 
-         * Coperd: simplily, we use this to check if there is harddisk attached 
-         * to this port 
-         */
-        if (s->bs && s->bs->drv && !s->is_cdrom) { 
+        //#ifdef SSD_EMULATION
+        /* Coperd: BlockDriverState: *BlockDriver -> if there is medium */
+        vm_ide[ide_idx++] = s;
+
+        if (s->bs && s->bs->drv && !s->is_cdrom) { /* Coperd: simplily, we use this to check if there is harddisk attached to this port */
             printf("INIT SSD[%d] from [%s]\n", ide_idx, s->bs->filename);
+#ifdef SSD_EMULATION
             SSD_INIT(s);
 
             int nwarmup = s->ssd.nwarmup;
@@ -2998,8 +3084,9 @@ static void ide_init2(IDEState *ide_state,
             vm_ide[ide_idx++] = s;
         } else {
         }
-    }
+        //#endif
 
+    }
 }
 
 static void ide_init_ioport(IDEState *ide_state, int iobase, int iobase2)
