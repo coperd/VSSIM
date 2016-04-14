@@ -513,6 +513,7 @@ typedef struct SSDConf
 typedef struct SSDState
 {
     int gc_cnt;
+    int64_t gc_time;
     int gc_fail_cnt;
     int read_cnt;
     int write_cnt;

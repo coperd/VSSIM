@@ -34,7 +34,7 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
 #endif
                 break;
             } else {
-                s->bs->gc_whole_endtime += 1e5; // 100ms
+                s->bs->gc_whole_endtime += ssd->gc_time; // 100ms
                 ssd->gc_cnt++;
 #ifdef DEBUG_GC
                 mylog("%s: GC[%d], blocking to %" PRId64 "\n", get_ssd_name(s), 
