@@ -920,16 +920,23 @@ static void dma_buf_commit(IDEState *s, int is_write)
 
 static void ide_dma_error_gc(IDEState *s)
 {
+    uint8_t gc_wait_bits;
     //ide_transfer_stop(s);
     s->error = ABRT_ERR;
     s->error |= MC_ERR;
     s->status = READY_STAT | ERR_STAT;
-
+#ifndef RANDOM_GC
 #define GC_MAXTIME  1e5   /* 100ms */
     int64_t GC_TIME = s->bs->gc_whole_endtime - get_timestamp();
     if (GC_TIME > GC_MAXTIME)
         GC_TIME = GC_MAXTIME;
-    uint8_t gc_wait_bits = (uint8_t)(GC_TIME*1.0/GC_MAXTIME * 255);
+    gc_wait_bits = (uint8_t)(GC_TIME*1.0/GC_MAXTIME * 255);
+#else
+    struct timespec ts;
+    timespec_get(&tc, TIME_UTC);
+    srand((long)ts.tv_sec * 1000000000L + ts.tv_nsec);
+    gc_wait_bits = (rand()%0xFE) + 1;
+#endif
     s->hob_feature = gc_wait_bits;
     printf("hob_feature 0x%x\n", s->hob_feature);
     ide_set_irq(s);

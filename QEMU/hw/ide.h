@@ -26,7 +26,8 @@
 #include <pthread.h>
 
 
-//#define SSD_EMULATION
+#define SSD_EMULATION
+#define RANDOM_GC
 /* Enable EBUSY mechanism here */
 //#define DEBUG_ERR
 
