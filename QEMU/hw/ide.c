@@ -933,7 +933,7 @@ static void ide_dma_error_gc(IDEState *s)
     gc_wait_bits = (uint8_t)(GC_TIME*1.0/GC_MAXTIME * 255);
 #else
     struct timespec ts;
-    timespec_get(&tc, TIME_UTC);
+    timespec_get(&ts, TIME_UTC);
     srand((long)ts.tv_sec * 1000000000L + ts.tv_nsec);
     gc_wait_bits = (rand()%0xFE) + 1;
 #endif

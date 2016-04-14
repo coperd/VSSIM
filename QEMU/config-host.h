@@ -11,23 +11,18 @@
     &oss_audio_driver, \
 
 #define CONFIG_VNC_TLS 1
-#define CONFIG_VNC_SASL 1
 #define HAVE_FNMATCH_H 1
 #define QEMU_VERSION "0.11.0"
 #define QEMU_PKGVERSION " (qemu-kvm-0.11.0)"
-#define CONFIG_SDL 1
 #define CONFIG_CURSES 1
 #define CONFIG_ATFILE 1
 #define CONFIG_UTIMENSAT 1
 #define CONFIG_PIPE2 1
 #define CONFIG_SPLICE 1
 #define CONFIG_INOTIFY 1
-#define CONFIG_BRLAPI 1
-#define CONFIG_BLUEZ 1
 #define CONFIG_AIO 1
 #define HAVE_IOVEC 1
 #define HAVE_PREADV 1
-#define HAVE_FDT 1
 #define CONFIG_signalfd 1
 #define CONFIG_eventfd 1
 #define CONFIG_UNAME_RELEASE ""
