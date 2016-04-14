@@ -387,9 +387,11 @@ static void *aio_thread(void *unused)
         switch (aiocb->aio_type) {
             case QEMU_PAIO_READ:
                 if (blocked_by_gc(aiocb)) {
+#ifdef DEBUG_LATENCY
                     mylog("blocked: (%" PRId64 ", %zu), wait=%ld\n", 
                             aiocb->aio_offset/512, aiocb->aio_nbytes/512,
                             aiocb->wait - get_timestamp());
+#endif
                     /* Coperd: insert I/O back to queue */
                     qemu_paio_reread(aiocb);
                     aiocb_blocked = true;

@@ -32,7 +32,7 @@
 int trim_cnt = 0;
 #endif
 
-#define DEBUG_LATENCY
+//#define DEBUG_LATENCY
 
 /* debug IDE devices */
 //#define DEBUG_IDE
