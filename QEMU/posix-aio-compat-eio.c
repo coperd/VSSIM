@@ -19,15 +19,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include "osdep.h"
 #include "qemu-common.h"
-#include "posix-aio-compat.h"
-#include "mytrace.h"
 
-//extern int64_t GC_ENDTIME;
-//#define DEBUG_LATENCY
-//#define DEBUG_AIOCB
+#include "posix-aio-compat.h"
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
@@ -278,31 +273,6 @@ static size_t handle_aiocb_rw(struct qemu_paiocb *aiocb)
     return nbytes;
 }
 
-bool blocked_by_gc(struct qemu_paiocb *aiocb)
-{
-    if ((aiocb->is_from_ide == 1) && (aiocb->aio_type == QEMU_PAIO_READ) && 
-            (get_timestamp() < aiocb->wait))
-        return true;
-
-    return false;
-}
-
-/* Coperd: previously kill is used by worker threads, would it be problematic 
- * here ??? 
- * Next step: may consider to add a specific qeuue for blocked I/Os and let 
- * worker threads handle this queue first 
- */
-void ret_eio(struct qemu_paiocb *aiocb, pid_t pid)
-{
-    //mutex_lock(&lock);
-    aiocb->is_blocked = 1;
-    aiocb->active = 1;
-    aiocb->ret = -EIO;
-    //mutex_unlock(&lock);
-    //mylog("EIO: is_from_die=%d, r/w: %d\n", aiocb->is_from_ide, aiocb->aio_type);
-    //if (kill(pid, aiocb->ev_signo)) die("kill failed");
-}
-
 static void *aio_thread(void *unused)
 {
     pid_t pid;
@@ -319,7 +289,6 @@ static void *aio_thread(void *unused)
         size_t ret = 0;
         qemu_timeval tv;
         struct timespec ts;
-        bool aiocb_blocked = false;
 
         qemu_gettimeofday(&tv);
         ts.tv_sec = tv.tv_sec + 10;
@@ -328,110 +297,44 @@ static void *aio_thread(void *unused)
         /* Coperd: fetch one aio from request_list */
         mutex_lock(&lock);
 
-        /* Coperd: wait here when request queue is empty until timeout */
+        /* Coperd: wait here when request queue is empty or timeout */
         while (TAILQ_EMPTY(&request_list) &&
-                !(ret == ETIMEDOUT)) {
+               !(ret == ETIMEDOUT)) {
             ret = cond_timedwait(&cond, &lock, &ts);
         }
 
         if (TAILQ_EMPTY(&request_list))
             break;
 
-#if 0
-        mylog("This shoudn't be executed, please call 911 if you see this msg");
-#endif
         aiocb = TAILQ_FIRST(&request_list);
         TAILQ_REMOVE(&request_list, aiocb, node);
-
-#if 0
-        mylog("=============Searching for Eligible IO=========\n");
-        int tq_cnt = 0;
-        TAILQ_FOREACH(aiocb, &request_list, node) {
-            /* only remove non-GC requests out */
-            tq_cnt++;
-
-            if (!blocked_by_gc(aiocb)) {
-                mylog("Get aiocb: ide: %d, type=%d, wait=%" PRId64 ", (%ld, %zd)\n", 
-                        aiocb->is_from_ide, aiocb->aio_type, aiocb->wait,
-                        aiocb->aio_offset/512, aiocb->aio_nbytes/512);
-                break;
-                //TAILQ_REMOVE(&request_list, aiocb, node);
-                //break;
-            }
-
-            mylog("Skipping aiocb[%d]: ide: %d, type=%d, wait=%" PRId64 ", (%ld, %zd)\n", 
-                    tq_cnt, aiocb->is_from_ide, aiocb->aio_type, aiocb->wait,
-                    aiocb->aio_offset/512, aiocb->aio_nbytes/512);
-        }
-        mylog("=================End of Searching==============\n\n");
-
-        if (aiocb == NULL)
-            break;
-        TAILQ_REMOVE(&request_list, aiocb, node);
-#endif
-
         aiocb->active = 1;
         idle_threads--;
-#ifdef DEBUG_IDLE_THREADS
-        mylog("I get one aio, idle_thread=%d after (--)\n", idle_threads);
-#endif
         mutex_unlock(&lock);
-
-#ifdef DEBUG_LATENCY
-        if (aiocb->is_from_ide == 1)
-            mylog("aio start handling: sector_num=%" PRId64 " n=%zu\n", 
-                    aiocb->aio_offset/512, aiocb->aio_nbytes/512);
-#endif
 
         switch (aiocb->aio_type) {
-            case QEMU_PAIO_READ:
-                if (blocked_by_gc(aiocb)) {
-#ifdef DEBUG_LATENCY
-                    mylog("blocked: (%" PRId64 ", %zu), wait=%ld\n", 
-                            aiocb->aio_offset/512, aiocb->aio_nbytes/512,
-                            aiocb->wait - get_timestamp());
-#endif
-                    /* Coperd: insert I/O back to queue */
-                    qemu_paio_reread(aiocb);
-                    aiocb_blocked = true;
-                    break;
-                }
-            case QEMU_PAIO_WRITE:
-                ret = handle_aiocb_rw(aiocb);
-                break;
-            case QEMU_PAIO_IOCTL:
-                ret = handle_aiocb_ioctl(aiocb);
-                break;
-            default:
-                fprintf(stderr, "invalid aio request (0x%x)\n", aiocb->aio_type);
-                ret = -EINVAL;
-                break;
-        }
-#ifdef DEBUG_LATENCY
-        if (aiocb->is_from_ide == 1) {
-            mylog("Handled aiocb: ide: %d, type=%d, wait=%" PRId64 ", (%ld, %zd)\n", 
-                    aiocb->is_from_ide, aiocb->aio_type, (aiocb->wait == 0) ? 0 : aiocb->wait - get_timestamp(),
-                    aiocb->aio_offset/512, aiocb->aio_nbytes/512);
-        }
-#endif
+        case QEMU_PAIO_READ:
+        case QEMU_PAIO_WRITE:
+		ret = handle_aiocb_rw(aiocb);
+		break;
+        case QEMU_PAIO_IOCTL:
+		ret = handle_aiocb_ioctl(aiocb);
+		break;
+	default:
+		fprintf(stderr, "invalid aio request (0x%x)\n", aiocb->aio_type);
+		ret = -EINVAL;
+		break;
+	}
 
         mutex_lock(&lock);
-        if (!aiocb_blocked)
-            aiocb->ret = ret;
+        aiocb->ret = ret;
         idle_threads++;
-#ifdef DEBUG_IDLE_THREADS
-        mylog("I finished one aio, idle_thread=%d after (++)\n", idle_threads);
-#endif
         mutex_unlock(&lock);
 
-        if (!aiocb_blocked)
-            if (kill(pid, aiocb->ev_signo)) die("kill failed");
+        if (kill(pid, aiocb->ev_signo)) die("kill failed");
     }
 
     idle_threads--;
-#ifdef DEBUG_IDLE_THREADS
-    mylog("thread exiting, idle_thread=%d after (--)\n", idle_threads);
-#endif
     cur_threads--;
     mutex_unlock(&lock);
 
@@ -442,9 +345,6 @@ static void spawn_thread(void)
 {
     cur_threads++;
     idle_threads++;
-#ifdef DEBUG_IDLE_THREADS
-    mylog("creating a new thread, idle_thread=%d after (++)\n", idle_threads);
-#endif
     thread_create(&thread_id, &attr, aio_thread, NULL);
 }
 
@@ -466,50 +366,17 @@ int qemu_paio_init(struct qemu_paioinit *aioinit)
 static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
 {
     aiocb->aio_type = type;
-
-#if 0
-    if (aiocb->is_from_ide == 1) {
-        mylog("submit I/O: %d, %" PRId64 "\n", aiocb->aio_type, GC_WHOLE_ENDTIME);
-    }
-#endif
-
     aiocb->ret = -EINPROGRESS;
     aiocb->active = 0;
     mutex_lock(&lock);
-    if (idle_threads == 0 && cur_threads < max_threads) {
+    if (idle_threads == 0 && cur_threads < max_threads)
+        /* Coperd: create an I/O thread to read data from disk image file to iovec maintained by aiocb */
         spawn_thread();
-    }
-
     TAILQ_INSERT_TAIL(&request_list, aiocb, node);
     mutex_unlock(&lock);
     cond_signal(&cond);
 
     return 0;
-}
-
-int qemu_paio_resubmit(struct qemu_paiocb *aiocb, int type)
-{
-    aiocb->aio_type = type;
-    aiocb->ret = -EINPROGRESS;
-    aiocb->active = 0;
-    mutex_lock(&lock);
-    if (/*idle_threads == 0 && */cur_threads < max_threads)
-          spawn_thread();
-    TAILQ_INSERT_TAIL(&request_list, aiocb, node);
-    mutex_unlock(&lock);
-    cond_signal(&cond);
-
-    return 0;
-}
-
-int qemu_paio_reread(struct qemu_paiocb *aiocb)
-{
-    return qemu_paio_resubmit(aiocb, QEMU_PAIO_READ);
-}
-
-int qemu_paio_rewrite(struct qemu_paiocb *aiocb)
-{
-    return qemu_paio_resubmit(aiocb, QEMU_PAIO_WRITE);
 }
 
 int qemu_paio_read(struct qemu_paiocb *aiocb)
