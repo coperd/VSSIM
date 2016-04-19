@@ -27,7 +27,7 @@
 
 
 #define SSD_EMULATION
-#define RANDOM_GC
+//#define RANDOM_GC
 /* Enable EBUSY mechanism here */
 //#define DEBUG_ERR
 

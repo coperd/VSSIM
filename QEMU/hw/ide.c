@@ -34,7 +34,7 @@
 int trim_cnt = 0;
 #endif
 
-#define DEBUG_LATENCY
+//#define DEBUG_LATENCY
 
 /* debug IDE devices */
 #define DEBUG_IDE
@@ -3074,16 +3074,24 @@ static void ide_init2(IDEState *ide_state,
             SSD_INIT(s);
 
             int nwarmup = s->ssd.nwarmup;
+            int tmp_sector_num;
             if (nwarmup > 0) {
                 mylog("=======[%s] SSD WARMUP BEGINS=======\n", get_ssd_name(s));
                 int ii, jj;
                 for (ii = 0; ii < 10; ii++) {
-                    int tmp_sector_num = 0;
+                    tmp_sector_num = 0;
                     for (jj = 0; jj < nwarmup/10; jj++) {
                         SSD_WRITE(s, tmp_sector_num, 8);
                         tmp_sector_num += 8;
                     }
                 }
+
+                srand((unsigned)time(NULL));
+                for (ii = 0; ii < 90000; ii++) {
+                    tmp_sector_num = rand() % (512*1024*1024/512/2);
+                    SSD_WRITE(s, tmp_sector_num, 8);
+                }
+
                 mylog("========[%s] SSD WARMUP ENDS========\n", get_ssd_name(s));
             }
 #endif

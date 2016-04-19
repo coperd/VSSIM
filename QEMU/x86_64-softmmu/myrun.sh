@@ -3,7 +3,7 @@
 # VSSIM running script
 
 
-IMAGEDIR=$HOME/VSSIM/IMAGES
+IMAGEDIR=$HOME/images
 RDSKDIR=/mnt/tmpfs
 
 #VSSIMQEMU=$HOME/git/VSSIM/QEMU/x86_64-softmmu/qemu-system-x86_64.noebusy
