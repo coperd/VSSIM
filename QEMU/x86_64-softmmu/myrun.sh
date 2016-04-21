@@ -11,7 +11,7 @@ VSSIMQEMU=./qemu-system-x86_64
 VSSIMQEMUIMG=../qemu-img
 
 
-LDSK=$IMAGEDIR/hda.raw # virtual disk for guest OS, reside in host local FS
+LDSK=$IMAGEDIR/u14s_old.raw # virtual disk for guest OS, reside in host local FS
 #LDSK=$IMAGEDIR/ssd_hda.img # virtual disk for guest OS, reside in host local FS
 
 VSSD1=$RDSKDIR/vssd1.raw   # virtual SSD disks (1,2) for building RAID1 in guest OS, reside in host ramdisk
@@ -31,7 +31,6 @@ if [[ "X""$1" == "X" ]]; then
     QEMU=$VSSIMQEMU
 else
     QEMU=$1
-    rm -rf /mnt/tmpfs/*
 fi
 # create virtual disks we need if they doesn't exist
 [[ ! -e $VSSD1 ]] && $VSSIMQEMUIMG create -f raw $VSSD1 512M
@@ -66,7 +65,7 @@ $QEMU \
     -drive file=$VSSD3,if=ide \
     -drive file=$VSSD4,if=ide \
     -enable-kvm \
-    -nographic \
     -net nic,model=virtio \
     -net user,hostfwd=tcp::8080-:22 \
+    -nographic \
     -usbdevice tablet

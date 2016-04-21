@@ -3086,17 +3086,17 @@ static void ide_init2(IDEState *ide_state,
                     }
                 }
 
+#if 0
                 srand((unsigned)time(NULL));
                 for (ii = 0; ii < 90000; ii++) {
                     tmp_sector_num = rand() % (512*1024*1024/512/2);
                     SSD_WRITE(s, tmp_sector_num, 8);
                 }
+#endif
 
                 mylog("========[%s] SSD WARMUP ENDS========\n", get_ssd_name(s));
             }
 #endif
-            /* Coperd: BlockDriverState: *BlockDriver -> if there is medium */
-            vm_ide[ide_idx++] = s;
         } else {
         }
         //#endif
