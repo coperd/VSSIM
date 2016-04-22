@@ -72,6 +72,8 @@ void INIT_VSSIM_CONFIG(IDEState *s)
                 fscanf(pfData, "%lf", &ssdconf->gc_threshold_hard);
             } else if (strcmp(szCommand, "WARMUP") == 0) {
                 fscanf(pfData, "%d", &ssd->nwarmup);
+            } else if (strcmp(szCommand, "GC_TIME") == 0) {
+                fscanf(pfData, "%ld", &ssd->gc_time);
             }
 
 #if defined FTL_MAP_CACHE || defined Polymorphic_FTL
@@ -243,6 +245,7 @@ void INIT_SSD_CONFIG(IDEState *s)
 {
     SSDState *ssd = &(s->ssd);
     /* SSDState structure initlization */
+    ssd->gc_time = 10000;
     ssd->gc_fail_cnt = 0;
     ssd->gc_cnt = 0;
     ssd->read_cnt = 0;
