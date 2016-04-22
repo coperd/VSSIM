@@ -35,6 +35,7 @@ int trim_cnt = 0;
 #endif
 
 //#define DEBUG_LATENCY
+#define WARMUP
 
 /* debug IDE devices */
 #define DEBUG_IDE
@@ -938,7 +939,7 @@ static void ide_dma_error_gc(IDEState *s)
     gc_wait_bits = (rand()%0xFE) + 1;
 #endif
     s->hob_feature = gc_wait_bits;
-    printf("hob_feature 0x%x\n", s->hob_feature);
+    //printf("hob_feature 0x%x\n", s->hob_feature);
     ide_set_irq(s);
 }
 
@@ -3073,6 +3074,7 @@ static void ide_init2(IDEState *ide_state,
 #ifdef SSD_EMULATION
             SSD_INIT(s);
 
+#ifdef WARMUP
             int nwarmup = s->ssd.nwarmup;
             int tmp_sector_num;
             if (nwarmup > 0) {
@@ -3096,6 +3098,7 @@ static void ide_init2(IDEState *ide_state,
 
                 mylog("========[%s] SSD WARMUP ENDS========\n", get_ssd_name(s));
             }
+#endif
 #endif
         } else {
         }
