@@ -54,7 +54,7 @@ fi
 
 $QEMU \
     -name "VSSIM" \
-    -smp 2 \
+    -smp 8 \
     -m 2048 \
     -drive file=$LDSK,if=virtio,boot=on \
     -drive file=$VSSD1,if=ide \
