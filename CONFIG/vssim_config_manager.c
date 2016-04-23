@@ -245,7 +245,7 @@ void INIT_SSD_CONFIG(IDEState *s)
 {
     SSDState *ssd = &(s->ssd);
     /* SSDState structure initlization */
-    ssd->gc_time = 10000;
+    ssd->gc_time = 0; // Coperd: by default, GC doesn't take time
     ssd->gc_fail_cnt = 0;
     ssd->gc_cnt = 0;
     ssd->read_cnt = 0;
