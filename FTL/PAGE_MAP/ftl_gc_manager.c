@@ -34,7 +34,7 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
 #endif
                 break;
             } else {
-                //s->bs->gc_whole_endtime += ssd->gc_time; // 1ms
+                s->bs->gc_whole_endtime += ssd->gc_time; // 1ms
                 ssd->gc_cnt++;
 #ifdef DEBUG_GC
                 mylog("%s GC[%d], blocking to %" PRId64 "\n", get_ssd_name(s), 
@@ -159,9 +159,11 @@ int GARBAGE_COLLECTION(IDEState *s)
     WRITE_LOG(szTemp);
 #endif
 
+#if 0
     s->bs->gc_whole_endtime += copy_page_nb * (ssdconf->cell_read_delay +
             ssdconf->reg_write_delay + ssdconf->cell_program_delay +
             ssdconf->reg_read_delay) + ssdconf->block_erase_delay;
+#endif
 
 
 #ifdef FTL_DEBUG
