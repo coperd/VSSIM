@@ -34,7 +34,7 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
 #endif
                 break;
             } else {
-                s->bs->gc_whole_endtime += ssd->gc_time; // 100ms
+                //s->bs->gc_whole_endtime += ssd->gc_time; // 100ms
                 ssd->gc_cnt++;
 #ifdef DEBUG_GC
                 mylog("%s: GC[%d], blocking to %" PRId64 "\n", get_ssd_name(s), 
@@ -150,6 +150,11 @@ int GARBAGE_COLLECTION(IDEState *s)
     SSD_BLOCK_ERASE(s, victim_phy_flash_num, victim_phy_block_num);
     UPDATE_BLOCK_STATE(s, victim_phy_flash_num, victim_phy_block_num, EMPTY_BLOCK);
     INSERT_EMPTY_BLOCK(s, victim_phy_flash_num, victim_phy_block_num);
+
+    /* Coperd: use estimated GC delay here */
+    s->bs->gc_whole_endtime += copy_page_nb * (ssdconf->cell_read_delay + 
+            ssdconf->reg_write_delay + ssdconf->cell_program_delay + 
+            ssdconf->reg_read_delay) + ssdconf->block_erase_delay;
 
 #ifdef MONITOR_ON
     char szTemp[1024];
