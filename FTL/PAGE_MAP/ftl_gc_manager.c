@@ -151,6 +151,14 @@ int GARBAGE_COLLECTION(IDEState *s)
     UPDATE_BLOCK_STATE(s, victim_phy_flash_num, victim_phy_block_num, EMPTY_BLOCK);
     INSERT_EMPTY_BLOCK(s, victim_phy_flash_num, victim_phy_block_num);
 
+    int64_t GC_TIME = copy_page_nb * (ssdconf->cell_read_delay +
+            ssdconf->reg_write_delay + ssdconf->cell_program_delay +
+            ssdconf->reg_read_delay) + ssdconf->block_erase_delay;
+    
+    mylog("gc_time: %" PRId64 ", copy_page_nb: %d\n", GC_TIME, copy_page_nb);
+
+    s->bs->gc_whole_endtime += GC_TIME;
+
 #ifdef MONITOR_ON
     char szTemp[1024];
     sprintf(szTemp, "GC ");
@@ -158,10 +166,6 @@ int GARBAGE_COLLECTION(IDEState *s)
     sprintf(szTemp, "WB AMP %d", copy_page_nb);
     WRITE_LOG(szTemp);
 #endif
-
-    s->bs->gc_whole_endtime += copy_page_nb * (ssdconf->cell_read_delay +
-            ssdconf->reg_write_delay + ssdconf->cell_program_delay +
-            ssdconf->reg_read_delay) + ssdconf->block_erase_delay;
 
 
 #ifdef FTL_DEBUG
