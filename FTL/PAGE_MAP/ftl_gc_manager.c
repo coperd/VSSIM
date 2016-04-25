@@ -152,9 +152,13 @@ int GARBAGE_COLLECTION(IDEState *s)
     INSERT_EMPTY_BLOCK(s, victim_phy_flash_num, victim_phy_block_num);
 
     /* Coperd: use estimated GC delay here */
-    s->bs->gc_whole_endtime += copy_page_nb * (ssdconf->cell_read_delay + 
+    int64_t GC_TIME = copy_page_nb * (ssdconf->cell_read_delay + 
             ssdconf->reg_write_delay + ssdconf->cell_program_delay + 
             ssdconf->reg_read_delay) + ssdconf->block_erase_delay;
+
+    s->bs->gc_whole_endtime += GC_TIME;
+
+    mylog("GC_TIME=%"PRId64", copy_page_nb=%d\n", GC_TIME, copy_page_nb);
 
 #ifdef MONITOR_ON
     char szTemp[1024];
