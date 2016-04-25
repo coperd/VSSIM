@@ -1135,10 +1135,10 @@ static void ide_sector_read_dma(IDEState *s)
 
     if ((get_timestamp() < s->bs->gc_whole_endtime) && 
             n > 0 && (ide_get_cus(s) == 0)) {
-#ifdef DEBUG_LATENCY
-        mylog("%s read error (%" PRId64 ", %d), blocking to %"PRId64"\n", 
-                get_ssd_name(s), sector_num, n, s->bs->gc_whole_endtime);
-#endif
+
+        s->nb_gc_eios++; /* Coperd: GC eio counter */
+        mylog("%s read error[%d] (%" PRId64 ", %d), blocking to %"PRId64"\n", 
+                get_ssd_name(s), s->nb_gc_eios, sector_num, n, s->bs->gc_whole_endtime);
         ide_dma_error_gc(s);
         return;
     }
@@ -3070,6 +3070,7 @@ static void ide_init2(IDEState *ide_state,
         vm_ide[ide_idx++] = s;
 
         if (s->bs && s->bs->drv && !s->is_cdrom) { /* Coperd: simplily, we use this to check if there is harddisk attached to this port */
+            s->nb_gc_eios = 0;
             printf("INIT SSD[%d] from [%s]\n", ide_idx, s->bs->filename);
 #ifdef SSD_EMULATION
             SSD_INIT(s);
