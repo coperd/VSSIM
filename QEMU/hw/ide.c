@@ -2964,14 +2964,20 @@ static void ide_init2(IDEState *ide_state,
             int nwarmup = s->ssd.nwarmup;
             if (nwarmup > 0) {
                 mylog("========[%s] SSD WARMUP BEGINS=====\n", get_ssd_name(s));
-                int ii, jj;
-                for (ii = 0; ii < 10; ii++) {
-                    int tmp_sector_num = 0;
-                    for (jj = 0; jj < nwarmup/10; jj++) {
-                        SSD_WRITE(s, tmp_sector_num, 8);
-                        tmp_sector_num += 8;
-                    }
+
+                srand((unsigned)time(NULL)); 
+
+                int ii;
+                SSDState *ssd = &(s->ssd);
+                SSDConf *ssdconf = &(ssd->param);
+                int64_t warmup_addr;
+                int sects_per_page = ssdconf->page_size / ssdconf->sector_size;
+                int64_t range = ssdconf->page_nb * ssdconf->block_nb * ssdconf->flash_nb;
+                for (ii = 0; ii < nwarmup; ii++) {
+                    warmup_addr = rand() % range;
+                    SSD_WRITE(s, warmup_addr * sects_per_page, sects_per_page);
                 }
+
                 mylog("=========[%s] SSD WARMUP ENDS======\n", get_ssd_name(s));
             }
         } else {
