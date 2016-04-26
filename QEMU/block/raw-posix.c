@@ -686,8 +686,12 @@ static RawAIOCB *raw_aio_setup(BlockDriverState *bs, int64_t sector_num,
 
     /* Coperd: mark whether this qemu_paio coms from IDE */
     acb->aiocb.is_from_ide = bs->is_from_ide;
+
+    int slot;
     acb->aiocb.is_blocked = 0;
-    acb->aiocb.wait = bs->gc_whole_endtime;
+    if ((bs->is_from_ide == 1)) {
+        acb->aiocb.wait = bs->max_gc_endtime;
+    }
 #ifdef DEBUG_LATENCY
     if (bs->is_from_ide == 1)
         mylog("raw aio, sector_num=%" PRId64 " n=%d\n", sector_num, nb_sectors);

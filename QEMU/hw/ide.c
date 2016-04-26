@@ -928,7 +928,7 @@ static void ide_dma_error_gc(IDEState *s)
     s->status = READY_STAT | ERR_STAT;
 #ifndef RANDOM_GC
 #define GC_MAXTIME  1e5   /* 100ms */
-    int64_t GC_TIME = s->bs->gc_whole_endtime - get_timestamp();
+    int64_t GC_TIME = s->bs->max_gc_endtime - get_timestamp();
     if (GC_TIME > GC_MAXTIME)
         GC_TIME = GC_MAXTIME;
     gc_wait_bits = (uint8_t)(GC_TIME*1.0/GC_MAXTIME * 255);
@@ -1117,6 +1117,17 @@ eot:
 
 #ifdef SSD_EMULATION
     SSD_READ(s, sector_num, n);
+
+    /* SSD_READ sets a new max_gc_endtime for the current Read request */
+    if ((get_timestamp() < s->bs->max_gc_endtime) && 
+            n > 0 && (ide_get_cus(s) == 0)) {
+
+        s->nb_gc_eios++; /* Coperd: GC eio counter */
+        mylog("%s read error[%d] (%" PRId64 ", %d), blocking to %"PRId64"\n", 
+                get_ssd_name(s), s->nb_gc_eios, sector_num, n, s->bs->max_gc_endtime);
+        ide_dma_error_gc(s);
+        return;
+    }
 #endif
 
     bm->aiocb = dma_bdrv_read(s->bs, &s->sg, sector_num, ide_read_dma_cb, bm);
@@ -1133,6 +1144,7 @@ static void ide_sector_read_dma(IDEState *s)
     int64_t sector_num = ide_get_sector(s);
     int n = s->nsector;
 
+#if 0
     if ((get_timestamp() < s->bs->gc_whole_endtime) && 
             n > 0 && (ide_get_cus(s) == 0)) {
 
@@ -1143,7 +1155,6 @@ static void ide_sector_read_dma(IDEState *s)
         return;
     }
 
-#if 0
     if (get_timestamp() < s->bs->gc_whole_endtime) {
         mylog("%s: READ (%"PRId64", %d) blocking to %"PRId64", returning ..\n", 
                 get_ssd_name(s), ide_get_sector(s), 
@@ -3039,7 +3050,14 @@ static void ide_init2(IDEState *ide_state,
         if (s->bs) {  
             /* Coperd: mark this device as IDE */
             s->bs->is_from_ide = 1;
-            s->bs->gc_whole_endtime = 0;
+
+            /* 
+             * Coperd: For IDE emulation, we observe that private is not used by 
+             * QEMU, thus we use bs->private to point to corresponding IDEState
+             * structure along with bs->is_from_ide. Thus, in AIO layer, aiocb
+             * can easily access SSD related parameters via [bs->private.ssd]
+             */
+            s->bs->private = s; 
 
             bdrv_get_geometry(s->bs, &nb_sectors);
             bdrv_guess_geometry(s->bs, &cylinders, &heads, &secs);
@@ -3075,6 +3093,19 @@ static void ide_init2(IDEState *ide_state,
 #ifdef SSD_EMULATION
             SSD_INIT(s);
 
+            SSDState *ssd = &(s->ssd);
+            SSDConf *ssdconf = &(ssd->param);
+
+            if (ssd->gc_mode == WHOLE_BLOCKING) {
+                s->bs->gc_slots = 1;
+            } else if (ssd->gc_mode == CHANNEL_BLOCKING) {
+                s->bs->gc_slots = ssdconf->channel_nb;
+            } else if (ssd->gc_mode == CHIP_BLOCKING) {
+                s->bs->gc_slots = ssdconf->flash_nb * ssdconf->planes_per_flash;
+            }
+            /* Coperd: initial state, GC blocking time all set to be 0 */
+            s->bs->gc_endtime = qemu_mallocz(sizeof(int64_t)*s->bs->gc_slots);
+
 #ifdef WARMUP
             int nwarmup = s->ssd.nwarmup;
             int tmp_sector_num;
@@ -3084,8 +3115,6 @@ static void ide_init2(IDEState *ide_state,
                 srand((unsigned)time(NULL));
 
                 int ii;
-                SSDState *ssd = &(s->ssd);
-                SSDConf *ssdconf = &(ssd->param);
                 int64_t warmup_addr;
                 int sects_per_page = ssdconf->page_size / ssdconf->sector_size;
                 int64_t range = ssdconf->page_nb * ssdconf->block_nb * ssdconf->flash_nb;

@@ -27,7 +27,7 @@
 
 
 #define SSD_EMULATION
-//#define RANDOM_GC
+#define RANDOM_GC
 /* Enable EBUSY mechanism here */
 //#define DEBUG_ERR
 
@@ -513,6 +513,9 @@ typedef struct SSDConf
 
 typedef struct SSDState
 {
+    int gc_mode;
+    int64_t *gc_channel_endtime;
+    
     int gc_cnt;
     int64_t gc_time;
     int gc_fail_cnt;

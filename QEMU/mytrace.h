@@ -13,6 +13,10 @@
 #define MYTRACE2 1
 //#define SLEEP
 
+#define WHOLE_BLOCKING      0
+#define CHANNEL_BLOCKING    1
+#define CHIP_BLOCKING       2
+
 extern pthread_mutex_t gc_lock;
 extern int GC_is_ON;
 extern int NB_CHANNEL, NB_CHIP;
