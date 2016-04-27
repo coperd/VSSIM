@@ -155,7 +155,8 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
 #endif
 
     if (sector_num + length > ssdconf->sector_nb) {
-        printf("Error[%s] Exceed Sector number\n", __FUNCTION__); 
+        mylog("(%"PRId64", %d) Exceed Sector number (%"PRId64")\n", sector_num, 
+                length, ssdconf->sector_nb); 
         return FAIL;	
     }
 
@@ -217,7 +218,7 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
      * this I/O will be blocked
      */
     int slot = 0;
-    if (ssd->gc_mode == WHOLE_BLOCKING) {
+    if (ssd->gc_mode == NO_BLOCKING || ssd->gc_mode == WHOLE_BLOCKING) {
         slot = 1;
     } else if (ssd->gc_mode == CHANNEL_BLOCKING) {
         slot = ssdconf->channel_nb;
@@ -275,7 +276,9 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
         if (pos < 0 || pos >= s->bs->gc_slots) {
             mylog("PAGE cannot be located Unit at %d\n", pos);
         }
+
         s->bs->io_stat[pos]  = 1;
+
         if (s->bs->gc_endtime[pos] > s->bs->max_gc_endtime) {
             s->bs->max_gc_endtime = s->bs->gc_endtime[pos];
         }

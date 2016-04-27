@@ -153,7 +153,9 @@ int GARBAGE_COLLECTION(IDEState *s)
     int64_t curtime = get_timestamp();
     int gc_slot;
 
-    if (ssd->gc_mode == WHOLE_BLOCKING) {
+    if (ssd->gc_mode == NO_BLOCKING) {
+        gc_slot = -1;
+    } else if (ssd->gc_mode == WHOLE_BLOCKING) {
         gc_slot = 0;
     } else if (ssd->gc_mode == CHANNEL_BLOCKING) {
         gc_slot = victim_phy_flash_num % ssdconf->channel_nb;
@@ -161,7 +163,25 @@ int GARBAGE_COLLECTION(IDEState *s)
         gc_slot = victim_phy_flash_num * ssdconf->planes_per_flash + 
             victim_phy_block_num % ssdconf->planes_per_flash;
     }
-    s->bs->gc_endtime[gc_slot] = curtime + GC_TIME;
+
+    /* 
+     * Coperd: both NO_BLOCKING_GC and WHOLE_BLOCKING_GC only has one slot
+     * The difference lies in that: for NO_BLOCKING, its endtime is always ZERO
+     * whole for WHOLE_BLOCKING, endtime will be updated by each GC
+     */
+    if (gc_slot == -1) { /* NO GC Blocking */
+        gc_slot = 0;
+        s->bs->gc_endtime[0] = 0; 
+    } else {
+#if 0
+        if (curtime > s->bs->gc_endtime[gc_slot]) {
+            s->bs->gc_endtime[gc_slot] = curtime + GC_TIME;
+        } else {
+            s->bs->gc_endtime[gc_slot] += GC_TIME;
+        }
+#endif
+        s->bs->gc_endtime[gc_slot] = curtime + GC_TIME;
+    }
 
     mylog("GC_TIME=%"PRId64", copy_page_nb=%d\n", GC_TIME, copy_page_nb);
 #ifdef DEBUG_GC

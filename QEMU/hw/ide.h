@@ -513,6 +513,18 @@ typedef struct SSDConf
 
 typedef struct SSDState
 {
+    /* 
+     * Coperd: gc_eio_flag is used to mark gct/ebusy/blocking mode
+     * GCT: return GC remaining time to host, when host receives multiple
+     * errors, our kernel will pick the SSD with small gc time for retry
+     * EBUSY: similar to GCT, but the kernel will randomly choose one SSD to do
+     * retry
+     * Blocking: Default mode, no error/gc-time info will be returned to host
+     * when GC happens
+     *
+     * 0->blocking, 1->gct, 2->ebusy
+     */
+    int interface_type; 
     int gc_mode;
     int64_t *gc_channel_endtime;
     

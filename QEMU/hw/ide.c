@@ -919,25 +919,33 @@ static void dma_buf_commit(IDEState *s, int is_write)
     qemu_sglist_destroy(&s->sg);
 }
 
-static void ide_dma_error_gc(IDEState *s)
+static void ide_dma_error_gc(IDEState *s, int gc_eio_flag)
 {
     uint8_t gc_wait_bits;
     //ide_transfer_stop(s);
     s->error = ABRT_ERR;
     s->error |= MC_ERR;
     s->status = READY_STAT | ERR_STAT;
-#ifndef RANDOM_GC
-#define GC_MAXTIME  1e5   /* 100ms */
-    int64_t GC_TIME = s->bs->max_gc_endtime - get_timestamp();
-    if (GC_TIME > GC_MAXTIME)
-        GC_TIME = GC_MAXTIME;
-    gc_wait_bits = (uint8_t)(GC_TIME*1.0/GC_MAXTIME * 255);
-#else
-    struct timespec ts;
-    timespec_get(&ts, TIME_UTC);
-    srand((long)ts.tv_sec * 1000000000L + ts.tv_nsec);
-    gc_wait_bits = (rand()%0xFE) + 1;
-#endif
+
+    SSDState *ssd = &(s->ssd);
+    SSDConf *ssdconf = &(ssd->param);
+
+    int64_t GC_MAXTIME = ssdconf->block_nb * 0.9 * (ssdconf->cell_read_delay + 
+            ssdconf->cell_program_delay) + ssdconf->block_erase_delay;
+    if (gc_eio_flag == GCT_INTERFACE) { /* Coperd: GCT mode */
+        int64_t gct = s->bs->max_gc_endtime - get_timestamp();
+        if (gct > GC_MAXTIME)
+            gct = GC_MAXTIME;
+        gc_wait_bits = (uint8_t)(gct * 1.0 / GC_MAXTIME * 255);
+    } else if (gc_eio_flag == EBUSY_INTERFACE) { /* Coperd: Ebusy mode */
+        /* 
+         * Coperd: we return a randomized GC time to host, in this case, the
+         * kernel will still the small GC remaining time. We use this to
+         * simulate random picking
+         */
+        srand((unsigned)time(NULL));
+        gc_wait_bits = (rand() % 0xFE) + 1;
+    }
     s->hob_feature = gc_wait_bits;
     //printf("hob_feature 0x%x\n", s->hob_feature);
     ide_set_irq(s);
@@ -1118,14 +1126,14 @@ eot:
 #ifdef SSD_EMULATION
     SSD_READ(s, sector_num, n);
 
-    /* SSD_READ sets a new max_gc_endtime for the current Read request */
-    if ((get_timestamp() < s->bs->max_gc_endtime) && 
-            n > 0 && (ide_get_cus(s) == 0)) {
+    /* Coperd: SSD_READ sets a new max_gc_endtime for the current Read request */
+    if ((s->ssd.interface_type != DEFAULT_INTERFACE) && (ide_get_cus(s) == 0) && 
+            (get_timestamp() < s->bs->max_gc_endtime) && (n > 0)) {
 
         s->nb_gc_eios++; /* Coperd: GC eio counter */
         mylog("%s read error[%d] (%" PRId64 ", %d), blocking to %"PRId64"\n", 
                 get_ssd_name(s), s->nb_gc_eios, sector_num, n, s->bs->max_gc_endtime);
-        ide_dma_error_gc(s);
+        ide_dma_error_gc(s, s->ssd.interface_type);
         return;
     }
 #endif
@@ -3096,7 +3104,8 @@ static void ide_init2(IDEState *ide_state,
             SSDState *ssd = &(s->ssd);
             SSDConf *ssdconf = &(ssd->param);
 
-            if (ssd->gc_mode == WHOLE_BLOCKING) {
+
+            if (ssd->gc_mode == WHOLE_BLOCKING || ssd->gc_mode == NO_BLOCKING) {
                 s->bs->gc_slots = 1;
             } else if (ssd->gc_mode == CHANNEL_BLOCKING) {
                 s->bs->gc_slots = ssdconf->channel_nb;
