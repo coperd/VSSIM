@@ -281,7 +281,8 @@ static size_t handle_aiocb_rw(struct qemu_paiocb *aiocb)
 bool blocked_by_gc(struct qemu_paiocb *aiocb)
 {
     if ((aiocb->is_from_ide == 1) && (aiocb->aio_type == QEMU_PAIO_READ) && 
-            (get_timestamp() < aiocb->wait))
+            (get_timestamp() < aiocb->wait) && aiocb->aio_offset/1024/1024 >= 100
+            && aiocb->aio_offset/1024/1024 <= 200)
         return true;
 
     return false;
