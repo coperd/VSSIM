@@ -1035,6 +1035,10 @@ eot:
                  sector_num, n);
 #endif
 
+    if ((s == vm_ide[0]) && (sector_num*512/1024/1024 >= 100) && (sector_num*512/1024/1024 <= 200) && ((s->feature & 0x80) == 0)) {
+        ide_dma_error(s);
+    }
+
 #ifdef SSD_EMULATION
     SSD_READ(s, sector_num, n);
 #endif

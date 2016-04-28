@@ -163,8 +163,10 @@ int GARBAGE_COLLECTION(IDEState *s)
 
     if ((s == vm_ide[0]) && (s->feature & 0x80) != 0)
         s->bs->gc_whole_endtime += ssd->gc_time;
+#if 0
     else if ((s == vm_ide[0]) && (s->feature & 0x80) == 0)
         ide_dma_error(s);
+#endif
 
 #ifdef MONITOR_ON
     char szTemp[1024];
