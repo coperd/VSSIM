@@ -892,7 +892,7 @@ static void dma_buf_commit(IDEState *s, int is_write)
     qemu_sglist_destroy(&s->sg);
 }
 
-static void ide_dma_error(IDEState *s)
+void ide_dma_error(IDEState *s)
 {
     ide_transfer_stop(s);
     s->error = ABRT_ERR;
@@ -1049,6 +1049,8 @@ static void ide_sector_read_dma(IDEState *s)
     s->io_buffer_index = 0;
     s->io_buffer_size = 0;
     s->is_read = 1;
+    if ((s->feature & 0x80) == 0)
+        ide_dma_error(s);
     ide_dma_start(s, ide_read_dma_cb);
 }
 

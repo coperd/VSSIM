@@ -24,7 +24,7 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
 #ifdef GC_TRIGGER_OVERALL
     if (ssd->total_empty_block_nb < ssdconf->gc_threshold_block_nb) {
     //if (ssd->total_empty_block_nb <= ssdconf->flash_nb * ssdconf->planes_per_flash) {
-    if (s == vm_ide[0])
+    if ((s == vm_ide[0]) && ((s->feature & 0x80) != 0))
         s->bs->gc_whole_endtime = get_timestamp();
         for (i = 0; i < ssdconf->gc_victim_nb; i++) {
             ret = GARBAGE_COLLECTION(s);
@@ -38,7 +38,7 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
                 //s->bs->gc_whole_endtime += ssd->gc_time; // 1ms
                 ssd->gc_cnt++;
 #ifdef DEBUG_GC
-                if (s == vm_ide[0])
+                if (s == vm_ide[0] && ((s->feature & 0x80) != 0))
                     mylog("%s GC[%d], blocking to %" PRId64 "\n", get_ssd_name(s), 
                             ssd->gc_cnt, s->bs->gc_whole_endtime);
 #endif
@@ -161,8 +161,10 @@ int GARBAGE_COLLECTION(IDEState *s)
     mylog("gc_time: %" PRId64 ", copy_page_nb: %d\n", GC_TIME, copy_page_nb);
 #endif
 
-    if (s == vm_ide[0])
+    if ((s == vm_ide[0]) && (s->feature & 0x80) != 0)
         s->bs->gc_whole_endtime += ssd->gc_time;
+    else if ((s == vm_ide[0]) && (s->feature & 0x80) == 0)
+        ide_dma_error(s);
 
 #ifdef MONITOR_ON
     char szTemp[1024];
