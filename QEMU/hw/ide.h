@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <sys/time.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 
 #define SSD_EMULATION
@@ -525,6 +526,8 @@ typedef struct SSDState
 
     //IDEState *s;
     char *name; 
+    char *warmup_trace_filename;
+    bool in_warmup_stage;
 
 #ifdef FTL_GET_WRITE_WORKLOAD
     FILE* fp_write_workload;

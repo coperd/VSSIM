@@ -256,6 +256,7 @@ void INIT_SSD_CONFIG(IDEState *s)
     ssd->read_cnt = 0;
     ssd->write_cnt = 0;
     ssd->nwarmup = 0;
+    ssd->in_warmup_stage = false;
 
     INIT_VSSIM_CONFIG(s);
 }

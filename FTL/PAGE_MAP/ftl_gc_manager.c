@@ -151,7 +151,7 @@ int GARBAGE_COLLECTION(IDEState *s)
             ssdconf->reg_write_delay + ssdconf->cell_program_delay + 
             ssdconf->reg_read_delay) + ssdconf->block_erase_delay;
     int64_t curtime = get_timestamp();
-    int gc_slot;
+    int gc_slot = 0;
 
     if (ssd->gc_mode == WHOLE_BLOCKING) {
         gc_slot = 0;
@@ -161,7 +161,25 @@ int GARBAGE_COLLECTION(IDEState *s)
         gc_slot = victim_phy_flash_num * ssdconf->planes_per_flash + 
             victim_phy_block_num % ssdconf->planes_per_flash;
     }
-    s->bs->gc_endtime[gc_slot] = curtime + GC_TIME;
+
+#if 0
+    if (curtime < s->bs->gc_endtime[gc_slot]) {
+        //curtime = s->bs->gc_endtime[gc_slot];
+        curtime = 0;
+        GC_TIME = 0;
+    }
+#endif
+
+    /* 
+     * Coperd: if we are in warmup stage, don't change gc_endtime, otherwise
+     * VSSIM may block too long so that RAID will fail to start. During OS
+     * bootup stage, it needs to read some metadata from VSSIM, which may be
+     * blocked by GC introduced in warmup
+     */
+    if (ssd->in_warmup_stage == false) {
+        s->bs->gc_endtime[gc_slot] = curtime + GC_TIME;
+        //s->bs->gc_endtime[gc_slot] = 0; // no GC
+    }
 
     mylog("GC_TIME=%"PRId64", copy_page_nb=%d\n", GC_TIME, copy_page_nb);
 #ifdef DEBUG_GC
@@ -181,6 +199,108 @@ int GARBAGE_COLLECTION(IDEState *s)
     printf("[%s] Complete\n", __FUNCTION__);
 #endif
     return SUCCESS;
+}
+
+/* Coperd: random victim block selection */
+int SELECT_RAND_VICTIM_BLOCK(IDEState *s, 
+        unsigned int *phy_flash_num, unsigned int *phy_block_num)
+{
+    int ret = FAIL;
+    SSDState *ssd = &(s->ssd);
+    SSDConf *ssdconf = &(ssd->param);
+
+    int i, j;
+    int entry_nb = 0;
+
+    victim_block_root *curr_v_b_root;
+    victim_block_entry *curr_v_b_entry;
+    victim_block_entry *victim_block = NULL;
+
+    block_state_entry *b_s_entry;
+    int curr_valid_page_nb = 0;
+
+    if (ssd->total_victim_block_nb == 0) {
+        printf("ERROR[%s, %s] There is no victim block\n", ssd->name, __func__);
+        return FAIL;
+    }
+
+    /* if GC_TRIGGER_OVERALL is defined, then */
+    curr_v_b_root = ssd->victim_block_list;
+
+    srand((unsigned)time(NULL));
+    //int nb_planes = ssdconf->flash_nb * ssdconf->planes_per_flash;
+    int nb_planes = ssdconf->victim_table_entry_nb;
+    int curr_block_list = 0;
+    int found = 0;
+    while (!found) {
+        curr_block_list = rand() % (nb_planes/2); /* Coperd: Pick from this list */
+        curr_block_list += 1/4 * nb_planes;
+        curr_v_b_root = &ssd->victim_block_list[curr_block_list];
+        entry_nb = curr_v_b_root->victim_block_nb;
+        if (entry_nb != 0) {
+            found = 1;
+        }
+    }
+
+    for (i = curr_block_list; i < ssdconf->victim_table_entry_nb; i++) {
+
+        /* Coperd: find a victim block */
+        if (curr_v_b_root->victim_block_nb != 0) {
+
+            entry_nb = curr_v_b_root->victim_block_nb;
+            curr_v_b_entry = curr_v_b_root->head;
+            if (victim_block == NULL) {
+                victim_block = curr_v_b_root->head;
+
+                b_s_entry = GET_BLOCK_STATE_ENTRY(s, victim_block->phy_flash_num, 
+                        victim_block->phy_block_num);
+
+                curr_valid_page_nb = b_s_entry->valid_page_nb;
+            }
+        } else {
+            entry_nb = 0;
+        }
+
+        if (entry_nb > 0) {
+            int tmp = rand() % (entry_nb*1/2);
+            tmp += entry_nb/4;
+            entry_nb = tmp;
+        }
+
+        for (j = 0; j < entry_nb; j++) {
+
+            b_s_entry = GET_BLOCK_STATE_ENTRY(s, curr_v_b_entry->phy_flash_num, 
+                    curr_v_b_entry->phy_block_num);
+            //curr_valid_page_nb = b_s_entry->valid_page_nb;
+
+            if (curr_valid_page_nb > b_s_entry->valid_page_nb) {
+                victim_block = curr_v_b_entry;
+                curr_valid_page_nb = b_s_entry->valid_page_nb;
+            }
+#if 0
+            if ((curr_valid_page_nb < ssdconf->page_nb * 3 / 4)) {
+                victim_block = curr_v_b_entry;
+                goto end;
+            }
+#endif
+
+            curr_v_b_entry = curr_v_b_entry->next;
+        }
+        curr_v_b_root += 1;
+    }
+
+    if ((curr_valid_page_nb < ssdconf->page_nb) && (curr_valid_page_nb > 0)) {
+
+        *phy_flash_num = victim_block->phy_flash_num;
+        *phy_block_num = victim_block->phy_block_num;
+        EJECT_VICTIM_BLOCK(s, victim_block);
+
+        ret = SUCCESS;
+    } else {
+        ret = SELECT_VICTIM_BLOCK(s, phy_flash_num, phy_block_num);
+    }
+
+    return ret;
 }
 
 /* Greedy Garbage Collection Algorithm */

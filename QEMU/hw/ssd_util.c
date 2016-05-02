@@ -30,6 +30,20 @@ char *get_ssd_name(IDEState *s)
     return ssd->name;
 }
 
+void set_ssd_warmup_trace_filename(IDEState *s)
+{
+    SSDState *ssd = &(s->ssd);
+    ssd->warmup_trace_filename = (char *)malloc(sizeof(char)*1024);
+    strcpy(ssd->warmup_trace_filename, s->bs->filename);
+    ssd->warmup_trace_filename = truncate_filename(ssd->warmup_trace_filename);
+}
+
+char *get_ssd_warmup_trace_filename(IDEState *s)
+{
+    SSDState *ssd = &(s->ssd);
+    return ssd->warmup_trace_filename;
+}
+
 /* Coperd: src -> bst_filename, struct_name -> "_block_state_table.dat" */
 void set_ssd_struct_filename(IDEState *s, char *src, const char *ssd_struct_name)
 {

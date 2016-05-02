@@ -24,6 +24,7 @@
  */
 #include <time.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "ide.h"
 #include "ssd.h"
 #include "ssd_util.h"
@@ -35,10 +36,11 @@ int trim_cnt = 0;
 #endif
 
 //#define DEBUG_LATENCY
-#define WARMUP
+//#define WARMUP
+#define WARMUP_FROM_TRACE_FILE
 
 /* debug IDE devices */
-#define DEBUG_IDE
+//#define DEBUG_IDE
 //#define DEBUG_IDE_ATAPI
 //#define DEBUG_AIO
 #define DEBUG_DSM
@@ -927,11 +929,11 @@ static void ide_dma_error_gc(IDEState *s)
     s->error |= MC_ERR;
     s->status = READY_STAT | ERR_STAT;
 #ifndef RANDOM_GC
-#define GC_MAXTIME  1e5   /* 100ms */
-    int64_t GC_TIME = s->bs->max_gc_endtime - get_timestamp();
+#define GC_MAXTIME  300000   /* 100ms */
+    uint64_t GC_TIME = s->bs->max_gc_endtime - get_timestamp();
     if (GC_TIME > GC_MAXTIME)
         GC_TIME = GC_MAXTIME;
-    gc_wait_bits = (uint8_t)(GC_TIME*1.0/GC_MAXTIME * 255);
+    gc_wait_bits = (uint8_t)(1 + GC_TIME*1.0/GC_MAXTIME * 254);
 #else
     struct timespec ts;
     timespec_get(&ts, TIME_UTC);
@@ -1118,16 +1120,18 @@ eot:
 #ifdef SSD_EMULATION
     SSD_READ(s, sector_num, n);
 
+#if 1
     /* SSD_READ sets a new max_gc_endtime for the current Read request */
     if ((get_timestamp() < s->bs->max_gc_endtime) && 
             n > 0 && (ide_get_cus(s) == 0)) {
 
         s->nb_gc_eios++; /* Coperd: GC eio counter */
-        mylog("%s read error[%d] (%" PRId64 ", %d), blocking to %"PRId64"\n", 
-                get_ssd_name(s), s->nb_gc_eios, sector_num, n, s->bs->max_gc_endtime);
+        //mylog("%s read error[%d] (%" PRId64 ", %d), blocking to %"PRId64"\n", 
+                //get_ssd_name(s), s->nb_gc_eios, sector_num, n, s->bs->max_gc_endtime);
         ide_dma_error_gc(s);
         return;
     }
+#endif
 #endif
 
     bm->aiocb = dma_bdrv_read(s->bs, &s->sg, sector_num, ide_read_dma_cb, bm);
@@ -3106,6 +3110,49 @@ static void ide_init2(IDEState *ide_state,
             /* Coperd: initial state, GC blocking time all set to be 0 */
             s->bs->gc_endtime = qemu_mallocz(sizeof(int64_t)*s->bs->gc_slots);
 
+            /* Coperd: warmup from trace file */
+#ifdef WARMUP_FROM_TRACE_FILE
+            
+            ssd->in_warmup_stage = true;
+
+            set_ssd_struct_filename(s, ssd->warmup_trace_filename, ".trace");
+            char *tfname = get_ssd_warmup_trace_filename(s);
+            FILE *tfp = fopen(tfname, "r");
+            if (tfp == NULL) {
+                mylog("CANNOT open trace file [%s]\n", tfname);
+                exit(0);
+            }
+            int64_t w_sector_num;
+            int w_length, w_type;
+
+            int t_nb_sects = 0;
+            int t_ios = 0;
+            int ntraverses = 0;
+
+            mylog("=======[%s] WARMUP from %s=======\n", get_ssd_name(s), get_ssd_warmup_trace_filename(s));
+            while (1) {
+                int sr = fscanf(tfp, "%*f%*d%" PRId64 "%d%d\n", &w_sector_num, 
+                        &w_length, &w_type);
+                if ((sr == EOF) && (ntraverses <= 2)) {
+                    ntraverses++;
+                    fseek(tfp, 0, SEEK_SET);
+                } else if (sr == EOF) {
+                    break;
+                }
+                if (w_type == 0) /* skip writes */
+                    continue;
+                SSD_WRITE(s, w_sector_num, w_length);
+                t_nb_sects += w_length;
+                t_ios++;
+                //mylog("write: (%"PRId64", %d)\n", w_sector_num, w_length);
+            }
+            mylog("========[%s] SSD WARMUP ENDS [%d I/Os, %d MB========\n", get_ssd_name(s), t_ios, t_nb_sects*512/1024/1024);
+            fclose(tfp);
+
+            ssd->in_warmup_stage = false;
+#endif
+
+#undef WARMUP
 #ifdef WARMUP
             int nwarmup = s->ssd.nwarmup;
             int tmp_sector_num;
@@ -3117,10 +3164,14 @@ static void ide_init2(IDEState *ide_state,
                 int ii;
                 int64_t warmup_addr;
                 int sects_per_page = ssdconf->page_size / ssdconf->sector_size;
-                int64_t range = ssdconf->page_nb * ssdconf->block_nb * ssdconf->flash_nb;
+                int iosz_range = 2 * ssdconf->page_nb;
+                int64_t range = ssdconf->page_nb * ssdconf->block_nb * ssdconf->flash_nb - iosz_range;
+                int nsects;
+                nwarmup += rand() % 1000;
                 for (ii = 0; ii < nwarmup; ii++) {
+                    nsects = (1 + rand() % iosz_range) * sects_per_page;
                     warmup_addr = rand() % range;
-                    SSD_WRITE(s, warmup_addr * sects_per_page, sects_per_page);
+                    SSD_WRITE(s, warmup_addr * sects_per_page, nsects);
                 }
 
 #if 0

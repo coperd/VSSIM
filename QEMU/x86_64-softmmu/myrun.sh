@@ -24,7 +24,7 @@ VSSD4=$RDSKDIR/vssd4.raw
 ISRDSK=$(mount | grep -i "$RDSKDIR")
 if [[ $ISRDSK == "" ]]; then
     sudo mkdir -p $RDSKDIR
-    sudo mount -t tmpfs -o size=2G tmpfs $RDSKDIR
+    sudo mount -t tmpfs -o size=24G tmpfs $RDSKDIR
 fi
 
 if [[ "X""$1" == "X" ]]; then
@@ -33,10 +33,10 @@ else
     QEMU=$1
 fi
 # create virtual disks we need if they doesn't exist
-[[ ! -e $VSSD1 ]] && $VSSIMQEMUIMG create -f raw $VSSD1 512M
-[[ ! -e $VSSD2 ]] && $VSSIMQEMUIMG create -f raw $VSSD2 512M
-[[ ! -e $VSSD3 ]] && $VSSIMQEMUIMG create -f raw $VSSD3 512M
-[[ ! -e $VSSD4 ]] && $VSSIMQEMUIMG create -f raw $VSSD4 512M
+[[ ! -e $VSSD1 ]] && $VSSIMQEMUIMG create -f raw $VSSD1 6G
+[[ ! -e $VSSD2 ]] && $VSSIMQEMUIMG create -f raw $VSSD2 6G
+[[ ! -e $VSSD3 ]] && $VSSIMQEMUIMG create -f raw $VSSD3 6G
+[[ ! -e $VSSD4 ]] && $VSSIMQEMUIMG create -f raw $VSSD4 6G
 
 
 

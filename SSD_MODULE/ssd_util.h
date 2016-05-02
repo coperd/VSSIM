@@ -27,5 +27,8 @@ void set_ssd_name(IDEState *s);
 char *get_ssd_name(IDEState *s);
 void set_ssd_struct_filename(IDEState *s, char *src, const char *ssd_struct_name);
 
+void set_ssd_warmup_trace_filename(IDEState *s);
+char *get_ssd_warmup_trace_filename(IDEState *s);
+
 #endif
 
