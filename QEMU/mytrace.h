@@ -13,6 +13,7 @@
 #define MYTRACE2 1
 //#define SLEEP
 
+#define NO_BLOCKING         -1
 #define WHOLE_BLOCKING      0
 #define CHANNEL_BLOCKING    1
 #define CHIP_BLOCKING       2

@@ -153,7 +153,9 @@ int GARBAGE_COLLECTION(IDEState *s)
     int64_t curtime = get_timestamp();
     int gc_slot = 0;
 
-    if (ssd->gc_mode == WHOLE_BLOCKING) {
+    if (ssd->gc_mode == NO_BLOCKING) {
+        gc_slot = -1;
+    } else if (ssd->gc_mode == WHOLE_BLOCKING) {
         gc_slot = 0;
     } else if (ssd->gc_mode == CHANNEL_BLOCKING) {
         gc_slot = victim_phy_flash_num % ssdconf->channel_nb;
@@ -177,8 +179,12 @@ int GARBAGE_COLLECTION(IDEState *s)
      * blocked by GC introduced in warmup
      */
     if (ssd->in_warmup_stage == false) {
-        s->bs->gc_endtime[gc_slot] = curtime + GC_TIME;
-        //s->bs->gc_endtime[gc_slot] = 0; // no GC
+        if (gc_slot = -1) {
+            s->bs->gc_endtime[0] = 0;
+        } else {
+            s->bs->gc_endtime[gc_slot] = curtime + ssdconf->gc_victim_nb * GC_TIME;
+            //s->bs->gc_endtime[gc_slot] = 0; // no GC
+        }
     }
 
     mylog("GC_TIME=%"PRId64", copy_page_nb=%d\n", GC_TIME, copy_page_nb);
@@ -289,7 +295,7 @@ int SELECT_RAND_VICTIM_BLOCK(IDEState *s,
         curr_v_b_root += 1;
     }
 
-    if ((curr_valid_page_nb < ssdconf->page_nb) && (curr_valid_page_nb > 0)) {
+    if ((curr_valid_page_nb < 2.0/4*ssdconf->page_nb) && (curr_valid_page_nb > 0)) {
 
         *phy_flash_num = victim_block->phy_flash_num;
         *phy_block_num = victim_block->phy_block_num;

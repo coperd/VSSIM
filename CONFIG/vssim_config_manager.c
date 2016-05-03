@@ -214,7 +214,7 @@ void INIT_VSSIM_CONFIG(IDEState *s)
     if (ssdconf->ovp != 0) {
         ssdconf->gc_victim_nb = ssdconf->flash_nb * ssdconf->block_nb * ssdconf->ovp / 100 / 2;
     } else {
-        ssdconf->gc_victim_nb = 5; /* Coperd: for each time, we only clean one GC */
+        ssdconf->gc_victim_nb = 1; /* Coperd: for each time, we only clean one GC */
     }
 #endif
 

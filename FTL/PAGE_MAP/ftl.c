@@ -217,7 +217,7 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
      * this I/O will be blocked
      */
     int slot = 0;
-    if (ssd->gc_mode == WHOLE_BLOCKING) {
+    if (ssd->gc_mode == NO_BLOCKING || ssd->gc_mode == WHOLE_BLOCKING) {
         slot = 1;
     } else if (ssd->gc_mode == CHANNEL_BLOCKING) {
         slot = ssdconf->channel_nb;
@@ -262,7 +262,7 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
         block_num = CALC_BLOCK(s, ppn);
         page_num = CALC_PAGE(s, ppn);
 
-        if (ssd->gc_mode == WHOLE_BLOCKING) {
+        if (ssd->gc_mode == NO_BLOCKING || ssd->gc_mode == WHOLE_BLOCKING) {
             /* Coperd: for whole-blocking mode, GC affects all I/Os */
             pos = 0;
         } else if (ssd->gc_mode == CHANNEL_BLOCKING) {

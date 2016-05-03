@@ -3103,13 +3103,14 @@ static void ide_init2(IDEState *ide_state,
             SSDState *ssd = &(s->ssd);
             SSDConf *ssdconf = &(ssd->param);
 
-            if (ssd->gc_mode == WHOLE_BLOCKING) {
+             if (ssd->gc_mode == NO_BLOCKING || ssd->gc_mode == WHOLE_BLOCKING) {
                 s->bs->gc_slots = 1;
             } else if (ssd->gc_mode == CHANNEL_BLOCKING) {
                 s->bs->gc_slots = ssdconf->channel_nb;
             } else if (ssd->gc_mode == CHIP_BLOCKING) {
                 s->bs->gc_slots = ssdconf->flash_nb * ssdconf->planes_per_flash;
             }
+
             /* Coperd: initial state, GC blocking time all set to be 0 */
             s->bs->gc_endtime = qemu_mallocz(sizeof(int64_t)*s->bs->gc_slots);
 
@@ -3136,7 +3137,7 @@ static void ide_init2(IDEState *ide_state,
             while (1) {
                 int sr = fscanf(tfp, "%*f%*d%" PRId64 "%d%d\n", &w_sector_num, 
                         &w_length, &w_type);
-                if ((sr == EOF) && (ntraverses <= 2)) {
+                if ((sr == EOF) && (ntraverses <= 0 + 4*i)) {
                     ntraverses++;
                     fseek(tfp, 0, SEEK_SET);
                 } else if (sr == EOF) {
