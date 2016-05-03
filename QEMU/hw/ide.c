@@ -1119,15 +1119,17 @@ eot:
 
 #ifdef SSD_EMULATION
     SSD_READ(s, sector_num, n);
+    s->nb_ios++;
 
 #if 1
     /* SSD_READ sets a new max_gc_endtime for the current Read request */
     if ((get_timestamp() < s->bs->max_gc_endtime) && 
-            n > 0 && (ide_get_cus(s) == 0)) {
+            (n > 0) && (ide_get_cus(s) == 0)) {
 
         s->nb_gc_eios++; /* Coperd: GC eio counter */
-        //mylog("%s read error[%d] (%" PRId64 ", %d), blocking to %"PRId64"\n", 
-                //get_ssd_name(s), s->nb_gc_eios, sector_num, n, s->bs->max_gc_endtime);
+        mylog("%s read error[%d/%d] (%" PRId64 ", %d), blocking to %"PRId64"\n", 
+                get_ssd_name(s), s->nb_gc_eios, s->nb_ios, sector_num, n, 
+                s->bs->max_gc_endtime);
         ide_dma_error_gc(s);
         return;
     }
@@ -3092,6 +3094,7 @@ static void ide_init2(IDEState *ide_state,
         vm_ide[ide_idx++] = s;
 
         if (s->bs && s->bs->drv && !s->is_cdrom) { /* Coperd: simplily, we use this to check if there is harddisk attached to this port */
+            s->nb_ios = 0;
             s->nb_gc_eios = 0;
             printf("INIT SSD[%d] from [%s]\n", ide_idx, s->bs->filename);
 #ifdef SSD_EMULATION

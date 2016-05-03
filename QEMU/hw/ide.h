@@ -28,7 +28,7 @@
 
 
 #define SSD_EMULATION
-#define RANDOM_GC
+//#define RANDOM_GC
 /* Enable EBUSY mechanism here */
 //#define DEBUG_ERR
 
@@ -638,6 +638,7 @@ typedef struct SSDState
 
 /* NOTE: IDEState represents in fact one drive */
 typedef struct IDEState {
+    int nb_ios;
     int nb_gc_eios;
 
 #ifdef DEBUG_ERR
