@@ -3116,81 +3116,83 @@ static void ide_init2(IDEState *ide_state,
             s->bs->gc_endtime = qemu_mallocz(sizeof(int64_t)*s->bs->gc_slots);
 
             /* Coperd: warmup from trace file */
-#ifdef WARMUP_FROM_TRACE_FILE
             
-            ssd->in_warmup_stage = true;
+            if (ssd->nwarmup == -1) {
+                ssd->in_warmup_stage = true;
 
-            set_ssd_struct_filename(s, ssd->warmup_trace_filename, ".trace");
-            char *tfname = get_ssd_warmup_trace_filename(s);
-            FILE *tfp = fopen(tfname, "r");
-            if (tfp == NULL) {
-                mylog("CANNOT open trace file [%s]\n", tfname);
-                exit(0);
-            }
-            int64_t w_sector_num;
-            int w_length, w_type;
-
-            int t_nb_sects = 0;
-            int t_ios = 0;
-            int ntraverses = 0;
-
-            mylog("=======[%s] WARMUP from %s=======\n", get_ssd_name(s), get_ssd_warmup_trace_filename(s));
-            while (1) {
-                int sr = fscanf(tfp, "%*f%*d%" PRId64 "%d%d\n", &w_sector_num, 
-                        &w_length, &w_type);
-                if ((sr == EOF) && (ntraverses <= 0 + 4*i)) {
-                    ntraverses++;
-                    fseek(tfp, 0, SEEK_SET);
-                } else if (sr == EOF) {
-                    break;
+                set_ssd_struct_filename(s, ssd->warmup_trace_filename, ".trace");
+                char *tfname = get_ssd_warmup_trace_filename(s);
+                FILE *tfp = fopen(tfname, "r");
+                if (tfp == NULL) {
+                    mylog("CANNOT open trace file [%s]\n", tfname);
+                    exit(0);
                 }
-                if (w_type == 0) /* skip writes */
-                    continue;
-                SSD_WRITE(s, w_sector_num, w_length);
-                t_nb_sects += w_length;
-                t_ios++;
-                //mylog("write: (%"PRId64", %d)\n", w_sector_num, w_length);
-            }
-            mylog("========[%s] SSD WARMUP ENDS [%d I/Os, %d MB========\n", get_ssd_name(s), t_ios, t_nb_sects*512/1024/1024);
-            fclose(tfp);
+                int64_t w_sector_num;
+                int w_length, w_type;
 
-            ssd->in_warmup_stage = false;
-#endif
+                int t_nb_sects = 0;
+                int t_ios = 0;
+                int ntraverses = 0;
 
-#undef WARMUP
-#ifdef WARMUP
-            int nwarmup = s->ssd.nwarmup;
-            int tmp_sector_num;
-            if (nwarmup > 0) {
-                mylog("=======[%s] SSD WARMUP BEGINS=======\n", get_ssd_name(s));
-                
-                srand((unsigned)time(NULL));
-
-                int ii;
-                int64_t warmup_addr;
-                int sects_per_page = ssdconf->page_size / ssdconf->sector_size;
-                int iosz_range = 2 * ssdconf->page_nb;
-                int64_t range = ssdconf->page_nb * ssdconf->block_nb * ssdconf->flash_nb - iosz_range;
-                int nsects;
-                nwarmup += rand() % 1000;
-                for (ii = 0; ii < nwarmup; ii++) {
-                    nsects = (1 + rand() % iosz_range) * sects_per_page;
-                    warmup_addr = rand() % range;
-                    SSD_WRITE(s, warmup_addr * sects_per_page, nsects);
+                mylog("=======[%s] WARMUP from %s=======\n", get_ssd_name(s), get_ssd_warmup_trace_filename(s));
+                while (1) {
+                    int sr = fscanf(tfp, "%*f%*d%" PRId64 "%d%d\n", &w_sector_num, 
+                            &w_length, &w_type);
+                    if ((sr == EOF) && (ntraverses <= 0 + 4*i)) {
+                        ntraverses++;
+                        fseek(tfp, 0, SEEK_SET);
+                    } else if (sr == EOF) {
+                        break;
+                    }
+                    if (w_type == 0) /* skip writes */
+                        continue;
+                    SSD_WRITE(s, w_sector_num, w_length);
+                    t_nb_sects += w_length;
+                    t_ios++;
+                    //mylog("write: (%"PRId64", %d)\n", w_sector_num, w_length);
                 }
+                mylog("========[%s] SSD WARMUP ENDS [%d I/Os, %d MB========\n", get_ssd_name(s), t_ios, t_nb_sects*512/1024/1024);
+                fclose(tfp);
 
+                ssd->in_warmup_stage = false;
+
+            } else if (ssd->nwarmup > 0) {
+
+                ssd->in_warmup_stage = true;
+
+                int nwarmup = s->ssd.nwarmup;
+                int tmp_sector_num;
+                if (nwarmup > 0) {
+                    mylog("=======[%s] SSD WARMUP BEGINS=======\n", get_ssd_name(s));
+
+                    srand((unsigned)time(NULL));
+
+                    int ii;
+                    int64_t warmup_addr;
+                    int sects_per_page = ssdconf->page_size / ssdconf->sector_size;
+                    int iosz_range = 2 * ssdconf->page_nb;
+                    int64_t range = ssdconf->page_nb * ssdconf->block_nb * ssdconf->flash_nb - iosz_range;
+                    int nsects;
+                    nwarmup += rand() % 1000;
+                    for (ii = 0; ii < nwarmup; ii++) {
+                        nsects = (1 + rand() % iosz_range) * sects_per_page;
+                        warmup_addr = rand() % range;
+                        SSD_WRITE(s, warmup_addr * sects_per_page, nsects);
+                    }
 #if 0
-                srand((unsigned)time(NULL));
-                for (ii = 0; ii < 90000; ii++) {
-                    tmp_sector_num = rand() % (512*1024*1024/512/2);
-                    SSD_WRITE(s, tmp_sector_num, 8);
-                }
+                    srand((unsigned)time(NULL));
+                    for (ii = 0; ii < 90000; ii++) {
+                        tmp_sector_num = rand() % (512*1024*1024/512/2);
+                        SSD_WRITE(s, tmp_sector_num, 8);
+                    }
 #endif
 
-                mylog("========[%s] SSD WARMUP ENDS========\n", get_ssd_name(s));
+                    mylog("========[%s] SSD WARMUP ENDS========\n", get_ssd_name(s));
+                }
+#endif
+            
+                ssd->in_warmup_stage = true;
             }
-#endif
-#endif
         } else {
         }
         //#endif

@@ -258,7 +258,7 @@ void INIT_SSD_CONFIG(IDEState *s)
     ssd->gc_fail_cnt = 0;
     ssd->read_cnt = 0;
     ssd->write_cnt = 0;
-    ssd->nwarmup = 0;
+    ssd->nwarmup = 0; /* 0<-> no warmup, -1<->warmup from trace file, > 0, # of random warmups */
     ssd->in_warmup_stage = false;
 
     INIT_VSSIM_CONFIG(s);
