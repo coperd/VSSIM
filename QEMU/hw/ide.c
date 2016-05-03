@@ -921,25 +921,26 @@ static void dma_buf_commit(IDEState *s, int is_write)
     qemu_sglist_destroy(&s->sg);
 }
 
-static void ide_dma_error_gc(IDEState *s)
+static void ide_dma_error_gc(IDEState *s, int interface)
 {
     uint8_t gc_wait_bits;
     //ide_transfer_stop(s);
     s->error = ABRT_ERR;
     s->error |= MC_ERR;
     s->status = READY_STAT | ERR_STAT;
-#ifndef RANDOM_GC
+
+    if (interface == GCT_INTERFACE) {
+
 #define GC_MAXTIME  300000   /* 100ms */
-    uint64_t GC_TIME = s->bs->max_gc_endtime - get_timestamp();
-    if (GC_TIME > GC_MAXTIME)
-        GC_TIME = GC_MAXTIME;
-    gc_wait_bits = (uint8_t)(1 + GC_TIME*1.0/GC_MAXTIME * 254);
-#else
-    struct timespec ts;
-    timespec_get(&ts, TIME_UTC);
-    srand((long)ts.tv_sec * 1000000000L + ts.tv_nsec);
-    gc_wait_bits = (rand()%0xFE) + 1;
-#endif
+        uint64_t GC_TIME = s->bs->max_gc_endtime - get_timestamp();
+        if (GC_TIME > GC_MAXTIME)
+            GC_TIME = GC_MAXTIME;
+        gc_wait_bits = (uint8_t)(1 + GC_TIME * 1.0 / GC_MAXTIME * 254);
+    } else if (interface == EBUSY_INTERFACE) {
+        srand((unsigned)time(NULL));
+        gc_wait_bits = (rand() % 0xFE) + 1;
+    }
+
     s->hob_feature = gc_wait_bits;
     //printf("hob_feature 0x%x\n", s->hob_feature);
     ide_set_irq(s);
@@ -1121,19 +1122,19 @@ eot:
     SSD_READ(s, sector_num, n);
     s->nb_ios++;
 
-#if 1
-    /* SSD_READ sets a new max_gc_endtime for the current Read request */
-    if ((get_timestamp() < s->bs->max_gc_endtime) && 
-            (n > 0) && (ide_get_cus(s) == 0)) {
+    if (s->ssd.interface != DEFAULT_INTERFACE) {
+        /* SSD_READ sets a new max_gc_endtime for the current Read request */
+        if ((get_timestamp() < s->bs->max_gc_endtime) && 
+                (n > 0) && (ide_get_cus(s) == 0)) {
 
-        s->nb_gc_eios++; /* Coperd: GC eio counter */
-        mylog("%s read error[%d/%d] (%" PRId64 ", %d), blocking to %"PRId64"\n", 
-                get_ssd_name(s), s->nb_gc_eios, s->nb_ios, sector_num, n, 
-                s->bs->max_gc_endtime);
-        ide_dma_error_gc(s);
-        return;
+            s->nb_gc_eios++; /* Coperd: GC eio counter */
+            mylog("%s read error[%d/%d] (%" PRId64 ", %d), blocking to %"PRId64"\n", 
+                    get_ssd_name(s), s->nb_gc_eios, s->nb_ios, sector_num, n, 
+                    s->bs->max_gc_endtime);
+            ide_dma_error_gc(s, s->ssd.interface);
+            return;
+        }
     }
-#endif
 #endif
 
     bm->aiocb = dma_bdrv_read(s->bs, &s->sg, sector_num, ide_read_dma_cb, bm);

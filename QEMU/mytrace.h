@@ -18,6 +18,10 @@
 #define CHANNEL_BLOCKING    1
 #define CHIP_BLOCKING       2
 
+#define DEFAULT_INTERFACE   0
+#define EBUSY_INTERFACE     1
+#define GCT_INTERFACE       2
+
 extern pthread_mutex_t gc_lock;
 extern int GC_is_ON;
 extern int NB_CHANNEL, NB_CHIP;

@@ -514,6 +514,7 @@ typedef struct SSDConf
 
 typedef struct SSDState
 {
+    int interface;
     int gc_mode;
     int64_t *gc_channel_endtime;
     

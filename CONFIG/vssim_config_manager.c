@@ -77,6 +77,8 @@ void INIT_VSSIM_CONFIG(IDEState *s)
                 fscanf(pfData, "%ld", &ssd->gc_time);
             } else if (strcmp(szCommand, "GC_MODE") == 0) {
                 fscanf(pfData, "%d", &ssd->gc_mode);
+            } else if (strcmp(szCommand, "INTERFACE") == 0) {
+                fscanf(pfData, "%d", &ssd->interface);
             }
 
 #if defined FTL_MAP_CACHE || defined Polymorphic_FTL
@@ -249,6 +251,7 @@ void INIT_SSD_CONFIG(IDEState *s)
     SSDState *ssd = &(s->ssd);
     SSDConf *ssdconf = &(ssd->param);
     /* SSDState structure initlization */
+    ssd->interface = DEFAULT_INTERFACE;
     ssd->gc_mode = CHANNEL_BLOCKING; /* by default, use channel blocking GC */
     ssd->gc_cnt = 0;
     ssd->gc_time = 10000; /* by default, each GC takes 10ms */
