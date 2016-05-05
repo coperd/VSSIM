@@ -113,6 +113,7 @@ struct BlockDriver {
 
 struct BlockDriverState {
     int is_from_ide;
+    int nb_retry_ios;
 
     int *io_stat;
     int64_t max_gc_endtime;

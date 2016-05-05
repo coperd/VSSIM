@@ -1120,17 +1120,44 @@ eot:
 
 #ifdef SSD_EMULATION
     SSD_READ(s, sector_num, n);
+
+    /* Coperd: I/O statistis */
     s->nb_ios++;
+
+//if ((s->ssd.interface != DEFAULT_INTERFACE)) {
+#if 0
+        if (ide_get_cus(s) != 0) {
+            s->nb_retry_ios++;
+        }
+#endif
+        
+        if (get_timestamp() >= s->bs->max_gc_endtime) {
+            s->nb_unblocked_ios++;
+        } else if (ide_get_cus(s) == 0 && s->ssd.interface != DEFAULT_INTERFACE) {
+            s->nb_gc_eios++;
+        } else {
+            s->nb_unknown_ios++;
+        }
+ //   }
+
+        if (s->nb_ios % 10 == 0) {
+            printf("IO_STAT\t%s\t%d\t%d\t%d\t%d\t%d\n", get_ssd_name(s), s->nb_ios, 
+                    s->nb_unblocked_ios, s->nb_gc_eios, s->bs->nb_retry_ios, 
+                    s->nb_unknown_ios);
+        }
+
 
     if (s->ssd.interface != DEFAULT_INTERFACE) {
         /* SSD_READ sets a new max_gc_endtime for the current Read request */
         if ((get_timestamp() < s->bs->max_gc_endtime) && 
                 (n > 0) && (ide_get_cus(s) == 0)) {
 
+#if 0
             s->nb_gc_eios++; /* Coperd: GC eio counter */
             mylog("%s read error[%d/%d] (%" PRId64 ", %d), blocking to %"PRId64"\n", 
                     get_ssd_name(s), s->nb_gc_eios, s->nb_ios, sector_num, n, 
                     s->bs->max_gc_endtime);
+#endif
             ide_dma_error_gc(s, s->ssd.interface);
             return;
         }
@@ -3097,12 +3124,18 @@ static void ide_init2(IDEState *ide_state,
         if (s->bs && s->bs->drv && !s->is_cdrom) { /* Coperd: simplily, we use this to check if there is harddisk attached to this port */
             s->nb_ios = 0;
             s->nb_gc_eios = 0;
+            s->nb_unknown_ios = 0;
+            s->nb_unblocked_ios = 0;
+            s->nb_retry_ios = 0;
+            s->bs->nb_retry_ios = 0;
             printf("INIT SSD[%d] from [%s]\n", ide_idx, s->bs->filename);
 #ifdef SSD_EMULATION
             SSD_INIT(s);
 
             SSDState *ssd = &(s->ssd);
             SSDConf *ssdconf = &(ssd->param);
+            mylog("%s gc_threshold_block_nb=%d\n", get_ssd_name(s), 
+                    ssdconf->gc_threshold_block_nb);
 
              if (ssd->gc_mode == NO_BLOCKING || ssd->gc_mode == WHOLE_BLOCKING) {
                 s->bs->gc_slots = 1;
@@ -3138,7 +3171,7 @@ static void ide_init2(IDEState *ide_state,
                 while (1) {
                     int sr = fscanf(tfp, "%*f%*d%" PRId64 "%d%d\n", &w_sector_num, 
                             &w_length, &w_type);
-                    if ((sr == EOF) && (ntraverses <= 0 + 4*i)) {
+                    if ((sr == EOF) && (ntraverses <= 1)) {
                         ntraverses++;
                         fseek(tfp, 0, SEEK_SET);
                     } else if (sr == EOF) {
@@ -3191,7 +3224,9 @@ static void ide_init2(IDEState *ide_state,
                 }
 #endif
             
-                ssd->in_warmup_stage = true;
+                ssd->in_warmup_stage = false;
+            } else {
+                ssd->in_warmup_stage = false;
             }
         } else {
         }

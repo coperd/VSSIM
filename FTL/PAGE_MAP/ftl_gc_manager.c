@@ -22,6 +22,9 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
     int i, ret;
 
 #ifdef GC_TRIGGER_OVERALL
+
+    //mylog("%s current empty_block_nb: %"PRId64"\n", get_ssd_name(s), 
+     //       ssd->total_empty_block_nb);
     if (ssd->total_empty_block_nb < ssdconf->gc_threshold_block_nb) {
         //if (ssd->total_empty_block_nb <= ssdconf->flash_nb * ssdconf->planes_per_flash) {
         for (i = 0; i < ssdconf->gc_victim_nb; i++) {
@@ -35,6 +38,12 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_num,
             } else {
                 //s->bs->gc_whole_endtime += ssd->gc_time; // 100ms
                 ssd->gc_cnt++;
+
+                /* Coperd: victim block list statistics */
+                if (ssd->gc_cnt == 1) {
+                    printf("%s\tOn 1st_GC: %"PRId64"\n", get_ssd_name(s), 
+                            ssd->total_empty_block_nb);
+                }
             }
 
 
@@ -179,18 +188,22 @@ int GARBAGE_COLLECTION(IDEState *s)
      * blocked by GC introduced in warmup
      */
     if (ssd->in_warmup_stage == false) {
-        if (gc_slot = -1) {
+        if (gc_slot == -1) {
             s->bs->gc_endtime[0] = 0;
         } else {
+            printf("CHANNEL_GC: %s\t%d\t%"PRId64"", get_ssd_name(s), gc_slot, 
+                    curtime);
             s->bs->gc_endtime[gc_slot] = curtime + ssdconf->gc_victim_nb * GC_TIME;
+
             //s->bs->gc_endtime[gc_slot] = 0; // no GC
+            printf("\t%"PRId64"\n", s->bs->gc_endtime[gc_slot]);
         }
     }
 
     mylog("GC_TIME=%"PRId64", copy_page_nb=%d\n", GC_TIME, copy_page_nb);
 #ifdef DEBUG_GC
-                mylog("%s: GC[%d], blocking to %" PRId64 "\n", get_ssd_name(s), 
-                        ssd->gc_cnt, s->bs->gc_endtime[gc_slot]);
+                mylog("%s GC[%d] %"PRId64" blocking to %" PRId64 "\n", get_ssd_name(s), 
+                        ssd->gc_cnt, ssd->total_empty_block_nb, s->bs->gc_endtime[gc_slot]);
 #endif
 
 #ifdef MONITOR_ON
