@@ -929,7 +929,7 @@ static void ide_dma_error_gc(IDEState *s, int interface)
     s->error |= MC_ERR;
     s->status = READY_STAT | ERR_STAT;
 
-    if (interface == GCT_INTERFACE) {
+    if (interface == GCT_INTERFACE || interface == EBUSY_INTERFACE) {
 
 #define GC_MAXTIME  300000   /* 100ms */
         uint64_t GC_TIME = s->bs->max_gc_endtime - get_timestamp();
@@ -937,7 +937,7 @@ static void ide_dma_error_gc(IDEState *s, int interface)
             GC_TIME = GC_MAXTIME;
         gc_wait_bits = (uint8_t)(1 + GC_TIME * 1.0 / GC_MAXTIME * 254);
         mylog("gc_remaining_time %"PRIu8"\n", gc_wait_bits);
-    } else if (interface == EBUSY_INTERFACE) {
+    } else { /*if (interface == EBUSY_INTERFACE) { */
         srand((unsigned)time(NULL));
         gc_wait_bits = (uint8_t)(rand() % 0xFE) + 1;
         //mylog("gc_remaining_time %"PRIu8"\n", gc_wait_bits);
@@ -1152,7 +1152,7 @@ eot:
     if (s->ssd.interface != DEFAULT_INTERFACE) {
         /* SSD_READ sets a new max_gc_endtime for the current Read request */
         if ((get_timestamp() < s->bs->max_gc_endtime) && 
-                (n > 0) && (ide_get_cus(s) == 0)) {
+                (n > 0)/* && (ide_get_cus(s) == 0)*/) {
 
 #if 0
             s->nb_gc_eios++; /* Coperd: GC eio counter */
