@@ -931,12 +931,12 @@ static void ide_dma_error_gc(IDEState *s, int interface)
 
     if (interface == GCT_INTERFACE || interface == EBUSY_INTERFACE) {
 
-#define GC_MAXTIME  300000   /* 100ms */
+#define GC_MAXTIME  200000   /* 100ms */
         uint64_t GC_TIME = s->bs->max_gc_endtime - get_timestamp();
         if (GC_TIME > GC_MAXTIME)
             GC_TIME = GC_MAXTIME;
         gc_wait_bits = (uint8_t)(1 + GC_TIME * 1.0 / GC_MAXTIME * 254);
-        mylog("gc_remaining_time %"PRIu8"\n", gc_wait_bits);
+        //mylog("gc_remaining_time %"PRIu8"\n", gc_wait_bits);
     } else { /*if (interface == EBUSY_INTERFACE) { */
         srand((unsigned)time(NULL));
         gc_wait_bits = (uint8_t)(rand() % 0xFE) + 1;
@@ -3186,7 +3186,10 @@ static void ide_init2(IDEState *ide_state,
                     t_ios++;
                     //mylog("write: (%"PRId64", %d)\n", w_sector_num, w_length);
                 }
-                mylog("========[%s] SSD WARMUP ENDS [%d I/Os, %d MB========\n", get_ssd_name(s), t_ios, t_nb_sects*512/1024/1024);
+                mylog("========[%s] SSD WARMUP ENDS %"PRId64"/%d blocks, %d I/Os,"
+                        "%d MB========\n", get_ssd_name(s), 
+                        ssd->total_empty_block_nb, ssdconf->gc_threshold_block_nb, 
+                        t_ios, t_nb_sects*512/1024/1024);
                 fclose(tfp);
 
                 ssd->in_warmup_stage = false;
