@@ -464,20 +464,26 @@ int qemu_paio_init(struct qemu_paioinit *aioinit)
 }
 
 static int nb_io_blocked;
+static int nb_io_total;
+static int nb_read_io_total;
 
 static int qemu_paio_submit(struct qemu_paiocb *aiocb, int type)
 {
     aiocb->aio_type = type;
 
-#if 0
     if (aiocb->is_from_ide == 1) {
-        mylog("submit I/O: %d, %" PRId64 "\n", aiocb->aio_type, GC_WHOLE_ENDTIME);
+        nb_io_total++;
+        if (aiocb->aio_type == QEMU_PAIO_READ)
+            nb_read_io_total++;
+        if (nb_io_total % 10 == 0) {
+            //mylog("AIO_Total_IOs %d\n", nb_io_total);
+            //mylog("AIO_Read_IOs %d\n", nb_read_io_total);
+        }
     }
-#endif
 
     if (blocked_by_gc(aiocb)) {
         nb_io_blocked++;
-        mylog("Total_blocked_IOs %d\n", nb_io_blocked);
+        //mylog("AIO_Blocked_IOs %d\n", nb_io_blocked);
     }
 
     aiocb->ret = -EINPROGRESS;

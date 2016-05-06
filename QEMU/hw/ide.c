@@ -936,9 +936,11 @@ static void ide_dma_error_gc(IDEState *s, int interface)
         if (GC_TIME > GC_MAXTIME)
             GC_TIME = GC_MAXTIME;
         gc_wait_bits = (uint8_t)(1 + GC_TIME * 1.0 / GC_MAXTIME * 254);
+        mylog("gc_remaining_time %"PRIu8"\n", gc_wait_bits);
     } else if (interface == EBUSY_INTERFACE) {
         srand((unsigned)time(NULL));
-        gc_wait_bits = (rand() % 0xFE) + 1;
+        gc_wait_bits = (uint8_t)(rand() % 0xFE) + 1;
+        //mylog("gc_remaining_time %"PRIu8"\n", gc_wait_bits);
     }
 
     s->hob_feature = gc_wait_bits;
@@ -1141,9 +1143,9 @@ eot:
  //   }
 
         if (s->nb_ios % 10 == 0) {
-            printf("IO_STAT\t%s\t%d\t%d\t%d\t%d\t%d\n", get_ssd_name(s), s->nb_ios, 
-                    s->nb_unblocked_ios, s->nb_gc_eios, s->bs->nb_retry_ios, 
-                    s->nb_unknown_ios);
+            //printf("IO_STAT\t%s\t%d\t%d\t%d\t%d\t%d\n", get_ssd_name(s), s->nb_ios, 
+             //       s->nb_unblocked_ios, s->nb_gc_eios, s->bs->nb_retry_ios, 
+              //      s->nb_unknown_ios);
         }
 
 
