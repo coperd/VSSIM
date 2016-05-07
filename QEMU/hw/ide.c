@@ -1124,29 +1124,21 @@ eot:
     SSD_READ(s, sector_num, n);
 
     /* Coperd: I/O statistis */
-    s->nb_ios++;
+    if (s->is_read == 1) {
+        s->nb_ios++;
 
-//if ((s->ssd.interface != DEFAULT_INTERFACE)) {
-#if 0
         if (ide_get_cus(s) != 0) {
             s->nb_retry_ios++;
-        }
-#endif
-        
-        if (get_timestamp() >= s->bs->max_gc_endtime) {
-            s->nb_unblocked_ios++;
-        } else if (ide_get_cus(s) == 0 && s->ssd.interface != DEFAULT_INTERFACE) {
-            s->nb_gc_eios++;
+            s->nb_blocked_ios++;
         } else {
-            s->nb_unknown_ios++;
+            s->nb_unblocked_ios++;
         }
- //   }
 
         if (s->nb_ios % 10 == 0) {
-            //printf("IO_STAT\t%s\t%d\t%d\t%d\t%d\t%d\n", get_ssd_name(s), s->nb_ios, 
-             //       s->nb_unblocked_ios, s->nb_gc_eios, s->bs->nb_retry_ios, 
-              //      s->nb_unknown_ios);
+            printf("%s, Total_IO:%d\tBlock_IO:%d\tRetry_IO:%d\tNormal_IO:%d\n", get_ssd_name(s), 
+                    s->nb_ios, s->nb_blocked_ios, s->nb_retry_ios, s->nb_unblocked_ios);
         }
+    }
 
 
     if (s->ssd.interface != DEFAULT_INTERFACE) {
@@ -3129,6 +3121,7 @@ static void ide_init2(IDEState *ide_state,
             s->nb_unknown_ios = 0;
             s->nb_unblocked_ios = 0;
             s->nb_retry_ios = 0;
+            s->nb_blocked_ios = 0;
             s->bs->nb_retry_ios = 0;
             printf("INIT SSD[%d] from [%s]\n", ide_idx, s->bs->filename);
 #ifdef SSD_EMULATION

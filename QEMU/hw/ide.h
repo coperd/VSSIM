@@ -641,6 +641,7 @@ typedef struct SSDState
 typedef struct IDEState {
     int nb_ios;
     int nb_retry_ios;
+    int nb_blocked_ios;
     int nb_unblocked_ios;
     int nb_unknown_ios;
     int nb_gc_eios;

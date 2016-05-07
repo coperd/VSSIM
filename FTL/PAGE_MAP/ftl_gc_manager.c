@@ -191,8 +191,7 @@ int GARBAGE_COLLECTION(IDEState *s)
         if (gc_slot == -1) {
             s->bs->gc_endtime[0] = 0;
         } else {
-            //printf("CHANNEL_GC: %s\t%d\t%"PRId64"", get_ssd_name(s), gc_slot, 
-             //       curtime);
+            printf("CHANNEL_GC: %s\t%d\t%"PRId64"", get_ssd_name(s), gc_slot, curtime);
             s->bs->gc_endtime[gc_slot] = curtime + ssdconf->gc_victim_nb * GC_TIME;
 
             //s->bs->gc_endtime[gc_slot] = 0; // no GC
