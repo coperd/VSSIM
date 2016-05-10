@@ -19,8 +19,8 @@
 #define CHIP_BLOCKING       2
 
 #define DEFAULT_INTERFACE   0
-#define EBUSY_INTERFACE     1
-#define GCT_INTERFACE       2
+#define EBUSY_INTERFACE     4
+#define GCT_INTERFACE       5
 
 extern pthread_mutex_t gc_lock;
 extern int GC_is_ON;

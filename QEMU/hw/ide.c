@@ -37,7 +37,7 @@ int trim_cnt = 0;
 
 //#define DEBUG_LATENCY
 //#define WARMUP
-#define WARMUP_FROM_TRACE_FILE
+//#define WARMUP_FROM_TRACE_FILE
 
 /* debug IDE devices */
 //#define DEBUG_IDE
@@ -1127,16 +1127,17 @@ eot:
     if (s->is_read == 1) {
         s->nb_ios++;
 
-        if (ide_get_cus(s) != 0) {
-            s->nb_retry_ios++;
-            s->nb_blocked_ios++;
-        } else {
+        if (get_timestamp() >= s->bs->max_gc_endtime) {
             s->nb_unblocked_ios++;
+        } else if (ide_get_cus(s) != 0) { /* meet GC, cus bit set, will retry */
+            s->nb_retry_ios++;
+        } else { /* meet GC, cus bit no set, so return EIO directly */
+            s->nb_gc_eios++;
         }
 
         if (s->nb_ios % 10 == 0) {
-            printf("%s, Total_IO:%d\tBlock_IO:%d\tRetry_IO:%d\tNormal_IO:%d\n", get_ssd_name(s), 
-                    s->nb_ios, s->nb_blocked_ios, s->nb_retry_ios, s->nb_unblocked_ios);
+            printf("%s, Total_IO:%d\tEIO_IO:%d\tRetry_IO:%d\tNormal_IO:%d\n", get_ssd_name(s), 
+                    s->nb_ios, s->nb_gc_eios, s->nb_retry_ios, s->nb_unblocked_ios);
         }
     }
 
