@@ -21,6 +21,7 @@
 void SSD_INIT(IDEState *s)
 {
     set_ssd_name(s);
+    set_ssd_warmup_trace_filename(s);
 	FTL_INIT(s);
 }
 

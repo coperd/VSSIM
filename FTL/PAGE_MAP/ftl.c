@@ -159,6 +159,8 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
         return FAIL;	
     }
 
+    int nb_planes = ssdconf->flash_nb * ssdconf->planes_per_flash;
+
     int32_t lpn;
     int32_t ppn;
     int32_t lba = sector_num; /* Coperd: sector_nb means the starting sector */
@@ -192,7 +194,6 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
         ppn = GET_MAPPING_INFO(s, lpn);
 
         if (ppn == -1) {
-            printf("[%s, %" PRId32 "] no mapping info\n", get_ssd_name(s), lba);
 #ifdef DEBUG_LATENCY
             mylog("[%s] no mapping\n", get_ssd_name(s));
 #endif 
@@ -209,9 +210,31 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
 
     ALLOC_IO_REQUEST(s, sector_num, length, READ, &io_page_nb);
 
+    /* 
+     * Coperd: record I/O's channel/chip information
+     * if this I/O will access the [channel/chip], the corresponding bit is 1,
+     * otherwise it's 0, in AIO layer, we check this bit to determin how long
+     * this I/O will be blocked
+     */
+    int slot = 0;
+    if (ssd->gc_mode == NO_BLOCKING || ssd->gc_mode == WHOLE_BLOCKING) {
+        slot = 1;
+    } else if (ssd->gc_mode == CHANNEL_BLOCKING) {
+        slot = ssdconf->channel_nb;
+    } else if (ssd->gc_mode == CHIP_BLOCKING) {
+        slot = nb_planes;
+    }
+    s->bs->io_stat = qemu_mallocz(sizeof(int)*slot);
+
     remain = length;
     lba = sector_num;
     left_skip = sector_num % ssdconf->sectors_per_page;
+    int64_t flash_num = 0;
+    int64_t block_num = 0;
+    int64_t page_num = 0;
+    int pos = 0;
+    /* Coperd: max_gc_endtime is per-IO variable, updated upon each SSD_READ */
+    s->bs->max_gc_endtime = 0;
 
     while (remain > 0) {
 
@@ -235,8 +258,30 @@ int _FTL_READ(IDEState *s, int32_t sector_num, unsigned int length)
             return ret;
         }
 
-        ret = SSD_PAGE_READ(s, CALC_FLASH(s, ppn), CALC_BLOCK(s, ppn), 
-                CALC_PAGE(s, ppn), read_page_nb, READ, io_page_nb);  
+        flash_num = CALC_FLASH(s, ppn);
+        block_num = CALC_BLOCK(s, ppn);
+        page_num = CALC_PAGE(s, ppn);
+
+        if (ssd->gc_mode == NO_BLOCKING || ssd->gc_mode == WHOLE_BLOCKING) {
+            /* Coperd: for whole-blocking mode, GC affects all I/Os */
+            pos = 0;
+        } else if (ssd->gc_mode == CHANNEL_BLOCKING) {
+            pos = flash_num % ssdconf->channel_nb;
+        } else if (ssd->gc_mode == CHIP_BLOCKING) {
+            pos = flash_num * ssdconf->planes_per_flash + 
+                block_num % ssdconf->planes_per_flash;
+        }
+
+        if (pos < 0 || pos >= s->bs->gc_slots) {
+            mylog("PAGE cannot be located Unit at %d\n", pos);
+        }
+        s->bs->io_stat[pos]  = 1;
+        if (s->bs->gc_endtime[pos] > s->bs->max_gc_endtime) {
+            s->bs->max_gc_endtime = s->bs->gc_endtime[pos];
+        }
+
+        ret = SSD_PAGE_READ(s, flash_num, block_num, page_num, read_page_nb, 
+                READ, io_page_nb);  
 
 #ifdef FTL_DEBUG
         if (ret == SUCCESS) {

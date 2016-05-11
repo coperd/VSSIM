@@ -15,5 +15,6 @@ void GC_CHECK(IDEState *s, unsigned int phy_flash_nb, unsigned int phy_block_nb)
 
 int GARBAGE_COLLECTION(IDEState *s);
 int SELECT_VICTIM_BLOCK(IDEState *s, unsigned int* phy_flash_nb, unsigned int* phy_block_nb);
+int SELECT_RAND_VICTIM_BLOCK(IDEState *s, unsigned int* phy_flash_nb, unsigned int* phy_block_nb);
 
 #endif

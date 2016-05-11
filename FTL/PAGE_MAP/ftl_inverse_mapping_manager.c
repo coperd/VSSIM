@@ -151,11 +151,14 @@ void INIT_EMPTY_BLOCK_LIST(IDEState *s)
 
                 for (k = i; k < ssdconf->block_nb; k += ssdconf->planes_per_flash) {
 
+                    curr_entry = qemu_mallocz(sizeof(empty_block_entry));
+#if 0
                     curr_entry = (empty_block_entry *)calloc(1, sizeof(empty_block_entry));	
                     if (curr_entry == NULL) {
                         printf("ERROR[%s] Calloc fail\n", __FUNCTION__);
                         break;
                     }
+#endif
 
                     if (k == i) {
                         curr_root->head = curr_entry;
@@ -238,13 +241,15 @@ void INIT_VICTIM_BLOCK_LIST(IDEState *s)
     } else {
         curr_root = ssd->victim_block_list;		
 
-        for (i = 0; i < nb_regs; i++) {
+        for (i = 0; i < ssdconf->planes_per_flash; i++) {
+            for (j = 0; j < ssdconf->flash_nb; j++) {
 
-            curr_root->head = NULL;
-            curr_root->tail = NULL;
-            curr_root->victim_block_nb = 0;
+                curr_root->head = NULL;
+                curr_root->tail = NULL;
+                curr_root->victim_block_nb = 0;
 
-            curr_root += 1;
+                curr_root += 1;
+            }
         }
         ssd->total_victim_block_nb = 0;
     }

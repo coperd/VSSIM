@@ -13,9 +13,18 @@
 #define MYTRACE2 1
 //#define SLEEP
 
+#define NO_BLOCKING         -1
+#define WHOLE_BLOCKING      0
+#define CHANNEL_BLOCKING    1
+#define CHIP_BLOCKING       2
+
+#define DEFAULT_INTERFACE   0
+#define EBUSY_INTERFACE     4
+#define GCT_INTERFACE       5
+
 extern pthread_mutex_t gc_lock;
 extern int GC_is_ON;
-extern int64_t GC_timestamp;
+extern int NB_CHANNEL, NB_CHIP;
 
 int64_t get_timestamp(void);
 

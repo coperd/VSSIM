@@ -90,6 +90,7 @@ int qemu_aio_set_fd_handler(int fd,
         node->opaque = opaque;
     }
 
+    /* Coperd: register to the main io handler list "first_io_handler"  */
     qemu_set_fd_handler2(fd, NULL, io_read, io_write, opaque);
 
     return 0;

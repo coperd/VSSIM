@@ -430,6 +430,8 @@ VirtIODevice *virtio_blk_init(DeviceState *dev)
 
     /* Coperd: mark, not from IDE */
     bs->is_from_ide = 0;
+    bs->gc_endtime = NULL;
+    bs->gc_slots = 0;
 
     s->vdev.get_config = virtio_blk_update_config;
     s->vdev.get_features = virtio_blk_get_features;

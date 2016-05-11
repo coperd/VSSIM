@@ -3,11 +3,16 @@
 *.a
 *.dat
 *.bin
+*.log
+*.trace
 
 qemu-system-x86_64
 qemu-nbd
 qemu-img
 qemu-io
 data/
+trace/
 benchmark/
 cscope*
+core
+*.log

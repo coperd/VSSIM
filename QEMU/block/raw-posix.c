@@ -75,7 +75,7 @@
 #include "../mytrace.h"
 
 //#define DEBUG_FLOPPY
-#define DEBUG_LATENCY
+//#define DEBUG_LATENCY
 
 #define DEBUG_BLOCK
 #if defined(DEBUG_BLOCK)
@@ -133,12 +133,14 @@ static int64_t raw_getlength(BlockDriverState *bs);
 static int cdrom_reopen(BlockDriverState *bs);
 #endif
 
+/* Coperd: open raw image file */
 static int raw_open_common(BlockDriverState *bs, const char *filename,
                            int bdrv_flags, int open_flags)
 {
     BDRVRawState *s = bs->opaque;
     int fd, ret;
 
+    /* Coperd: init AIO handler for this raw image "device" */
     posix_aio_init();
 
     s->lseek_err_cnt = 0;
@@ -636,6 +638,7 @@ static void raw_aio_remove(RawAIOCB *acb)
     pacb = &posix_aio_state->first_aio;
     for(;;) {
         if (*pacb == NULL) {
+            mylog("deleting: (%" PRId64 ", %zu)\n", acb->aiocb.aio_offset/512, acb->aiocb.aio_nbytes/512);
             fprintf(stderr, "raw_aio_remove: aio request not found!\n");
             break;
         } else if (*pacb == acb) {
@@ -683,7 +686,12 @@ static RawAIOCB *raw_aio_setup(BlockDriverState *bs, int64_t sector_num,
 
     /* Coperd: mark whether this qemu_paio coms from IDE */
     acb->aiocb.is_from_ide = bs->is_from_ide;
-    acb->aiocb.wait = bs->wait;
+
+    int slot;
+    acb->aiocb.is_blocked = 0;
+    if ((bs->is_from_ide == 1)) {
+        acb->aiocb.wait = bs->max_gc_endtime;
+    }
 #ifdef DEBUG_LATENCY
     if (bs->is_from_ide == 1)
         mylog("raw aio, sector_num=%" PRId64 " n=%d\n", sector_num, nb_sectors);

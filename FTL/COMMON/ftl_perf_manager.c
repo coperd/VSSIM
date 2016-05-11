@@ -742,9 +742,8 @@ int64_t CALC_IO_LATENCY(IDEState *s, io_request *request)
     latency = max_end_time - min_start_time;
 
     /* Coperd: r/w latency */
-    s->bs->wait = latency + get_usec();
     //printf("[%s] wait = %"PRId64"\n", get_ssd_name(s), s->bs->wait);
-    mylog("latency: %" PRId64 ", wait=%" PRId64 "\n", latency, s->bs->wait);
+    //mylog("latency: %" PRId64 "\n", latency);
 
     return latency;
 }

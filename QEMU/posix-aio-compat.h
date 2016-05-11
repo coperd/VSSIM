@@ -17,8 +17,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdbool.h>
 
 #include "sys-queue.h"
+#include "mytrace.h"
 
 #define QEMU_PAIO_CANCELED     0x01
 #define QEMU_PAIO_NOTCANCELED  0x02
@@ -26,6 +28,9 @@
 
 struct qemu_paiocb
 {
+    int channel, chip;
+
+    int is_blocked;
     int is_from_ide;
     int64_t wait;
 
@@ -68,7 +73,11 @@ int qemu_paio_error(struct qemu_paiocb *aiocb);
 ssize_t qemu_paio_return(struct qemu_paiocb *aiocb);
 int qemu_paio_cancel(int fd, struct qemu_paiocb *aiocb);
 
+int qemu_paio_resubmit(struct qemu_paiocb *aiocb, int type);
 int qemu_paio_reread(struct qemu_paiocb *aiocb);
 int qemu_paio_rewrite(struct qemu_paiocb *aiocb);
+
+bool blocked_by_gc(struct qemu_paiocb *aiocb);
+void ret_eio(struct qemu_paiocb *aiocb, pid_t pid);
 
 #endif

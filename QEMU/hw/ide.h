@@ -24,9 +24,11 @@
 #include <stdint.h>
 #include <sys/time.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 
 #define SSD_EMULATION
+//#define RANDOM_GC
 /* Enable EBUSY mechanism here */
 //#define DEBUG_ERR
 
@@ -75,10 +77,10 @@
 
 /* VSSIM Benchmark*/
 #ifndef VSSIM_BENCH
-  #define DEL_QEMU_OVERHEAD
-  #define FIRM_IO_BUFFER	/* SSD Read/Write Buffer ON */
-  #define SSD_THREAD		/* Enable SSD thread & SSD Read/Write Buffer */
-  #define SSD_THREAD_MODE_1
+  //#define DEL_QEMU_OVERHEAD
+  //#define FIRM_IO_BUFFER	/* SSD Read/Write Buffer ON */
+  //#define SSD_THREAD		/* Enable SSD thread & SSD Read/Write Buffer */
+  //#define SSD_THREAD_MODE_1
   //#define SSD_THREAD_MODE_2	/* Pending WB Flush until WB is full */
 #endif
 
@@ -512,13 +514,21 @@ typedef struct SSDConf
 
 typedef struct SSDState
 {
+    int interface;
+    int gc_mode;
+    int64_t *gc_channel_endtime;
+    
     int gc_cnt;
+    int64_t gc_time;
     int gc_fail_cnt;
     int read_cnt;
     int write_cnt;
+    int nwarmup;
 
     //IDEState *s;
     char *name; 
+    char *warmup_trace_filename;
+    bool in_warmup_stage;
 
 #ifdef FTL_GET_WRITE_WORKLOAD
     FILE* fp_write_workload;
@@ -629,8 +639,12 @@ typedef struct SSDState
 
 /* NOTE: IDEState represents in fact one drive */
 typedef struct IDEState {
-
-    int64_t wait;
+    int nb_ios;
+    int nb_retry_ios;
+    int nb_blocked_ios;
+    int nb_unblocked_ios;
+    int nb_unknown_ios;
+    int nb_gc_eios;
 
 #ifdef DEBUG_ERR
     int nerr_dma;
@@ -659,6 +673,8 @@ typedef struct IDEState {
     uint8_t sector;   /* Coperd: sector count register, serve as one parameter of command */
     uint8_t lcyl;     /* Coperd: LBA Low register, one parameter of command */
     uint8_t hcyl;     /* Coperd: LBA High register, one parameter of command */
+
+    int hob;
     /* other part of tf for lba48 support */
     uint8_t hob_feature;
     uint8_t hob_nsector;

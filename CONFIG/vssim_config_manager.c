@@ -9,6 +9,9 @@
 
 #include "vssim_config_manager.h"
 #include "ssd_util.h"
+#include "mytrace.h"
+
+extern int NB_CHANNEL, NB_CHIP;
 
 void INIT_VSSIM_CONFIG(IDEState *s)
 {
@@ -61,12 +64,21 @@ void INIT_VSSIM_CONFIG(IDEState *s)
                 fscanf(pfData, "%d", &ssdconf->io_parallelism);
             } else if (strcmp(szCommand, "CHANNEL_NB") == 0) {
                 fscanf(pfData, "%d", &ssdconf->channel_nb);
+                NB_CHANNEL = ssdconf->channel_nb;
             } else if (strcmp(szCommand, "OVP") == 0) {
                 fscanf(pfData, "%d", &ssdconf->ovp);
             } else if (strcmp(szCommand, "GC_THRESHOLD") == 0) {
                 fscanf(pfData, "%lf", &ssdconf->gc_threshold);
             } else if (strcmp(szCommand, "GC_THRESHOLD_HARD") == 0) {
                 fscanf(pfData, "%lf", &ssdconf->gc_threshold_hard);
+            } else if (strcmp(szCommand, "WARMUP") == 0) {
+                fscanf(pfData, "%d", &ssd->nwarmup);
+            } else if (strcmp(szCommand, "GC_TIME") == 0) {
+                fscanf(pfData, "%ld", &ssd->gc_time);
+            } else if (strcmp(szCommand, "GC_MODE") == 0) {
+                fscanf(pfData, "%d", &ssd->gc_mode);
+            } else if (strcmp(szCommand, "INTERFACE") == 0) {
+                fscanf(pfData, "%d", &ssd->interface);
             }
 
 #if defined FTL_MAP_CACHE || defined Polymorphic_FTL
@@ -204,7 +216,7 @@ void INIT_VSSIM_CONFIG(IDEState *s)
     if (ssdconf->ovp != 0) {
         ssdconf->gc_victim_nb = ssdconf->flash_nb * ssdconf->block_nb * ssdconf->ovp / 100 / 2;
     } else {
-        ssdconf->gc_victim_nb = 20;
+        ssdconf->gc_victim_nb = 1; /* Coperd: for each time, we only clean one GC */
     }
 #endif
 
@@ -213,6 +225,8 @@ void INIT_VSSIM_CONFIG(IDEState *s)
     ssdconf->map_entry_size = sizeof(int32_t);
     ssdconf->map_entries_per_page = ssdconf->page_size / ssdconf->map_entry_size;
     ssdconf->map_entry_nb = ssdconf->page_mapping_entry_nb / ssdconf->map_entries_per_page;	
+
+    NB_CHIP = ssdconf->flash_nb;
 #endif
 
     /* Polymorphic FTL */
@@ -235,10 +249,17 @@ void INIT_VSSIM_CONFIG(IDEState *s)
 void INIT_SSD_CONFIG(IDEState *s)
 {
     SSDState *ssd = &(s->ssd);
+    SSDConf *ssdconf = &(ssd->param);
     /* SSDState structure initlization */
+    ssd->interface = DEFAULT_INTERFACE;
+    ssd->gc_mode = CHANNEL_BLOCKING; /* by default, use channel blocking GC */
     ssd->gc_cnt = 0;
+    ssd->gc_time = 10000; /* by default, each GC takes 10ms */
+    ssd->gc_fail_cnt = 0;
     ssd->read_cnt = 0;
     ssd->write_cnt = 0;
+    ssd->nwarmup = 0; /* 0<-> no warmup, -1<->warmup from trace file, > 0, # of random warmups */
+    ssd->in_warmup_stage = false;
 
     INIT_VSSIM_CONFIG(s);
 }
